@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Life Quote Workflow v1.13</title>
+<title>Life Quote Workflow</title>
 <style>
   :root {
     --bg: #f4f7fb;
@@ -174,6 +174,55 @@
   .panel-note { margin:5px 0 0; color: var(--muted); font-size:13px; line-height:1.45; }
   .panel-body { padding:18px 20px 20px; }
   .input-grid { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+  .dob-group {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(0, 1.03fr) minmax(0, .97fr);
+    gap: 12px;
+    padding: 14px;
+    border-radius: 18px;
+    border: 1px solid rgba(49,103,200,.14);
+    background: linear-gradient(180deg, rgba(248,251,255,.96), rgba(241,246,255,.96));
+    box-shadow: 0 10px 22px rgba(35,69,124,.06);
+    transition: box-shadow .2s ease, border-color .2s ease, background .2s ease, transform .2s ease;
+  }
+  .dob-group.is-urgent {
+    border-color: rgba(49,103,200,.26);
+    background: linear-gradient(180deg, rgba(247,250,255,.98), rgba(236,243,255,.98));
+    box-shadow: 0 0 0 4px rgba(96,165,250,.10), 0 16px 32px rgba(35,69,124,.11);
+    animation: dobPulse 1.8s ease-in-out infinite;
+    will-change: box-shadow;
+  }
+  @keyframes dobPulse {
+    0%, 100% {
+      box-shadow: 0 0 0 4px rgba(96,165,250,.08), 0 14px 28px rgba(35,69,124,.09);
+    }
+    50% {
+      box-shadow: 0 0 0 6px rgba(96,165,250,.14), 0 18px 34px rgba(35,69,124,.13);
+    }
+  }
+  .dob-field {
+    min-width: 0;
+  }
+  .dob-field label {
+    font-weight: 800;
+    color: #233b61;
+    white-space: nowrap;
+  }
+  .dob-field input {
+    background: rgba(255,255,255,.92);
+    white-space: nowrap;
+  }
+  .dob-field input::placeholder,
+  .date-placeholder::placeholder {
+    color: #cbd5e1;
+    opacity: 1;
+  }
+  .dob-field input.dob-missing {
+    border-color: #93c5fd;
+    box-shadow: 0 0 0 3px rgba(96,165,250,.12);
+    background: #fbfdff;
+  }
   .wide { grid-column: 1 / -1; }
   label {
     display:block; margin-bottom:6px; font-size:12px; font-weight:700;
@@ -240,25 +289,23 @@
   }
   @media (max-width: 760px) {
     .wrap { padding:14px; }
-    .summary-grid, .input-grid, .row-grid, .result-grid { grid-template-columns:1fr; }
+    .summary-grid, .input-grid, .row-grid, .result-grid, .dob-group { grid-template-columns:1fr; }
   }
+
+.saved-quotes-reminder{
+  margin-top:10px;
+  font-size:12px;
+  line-height:1.45;
+  color:var(--muted);
+}
+.saved-quotes-reminder strong{
+  color:var(--ink);
+}
+
 </style>
 </head>
 <body>
 <div class="wrap">
-  
-  <section class="hero hero-slim">
-    <div class="summary-grid summary-grid-top">
-      <div class="summary-card">
-        <div class="summary-label">Client</div>
-        <div class="summary-value" id="kpiClient">—</div>
-      </div>
-      <div class="summary-card">
-        <div class="summary-label">Billing mode</div>
-        <div class="summary-value" id="kpiBilling">Annual</div>
-      </div>
-    </div>
-  </section>
 
   <section class="sticky-premium-bar">
     <div class="sticky-premium-inner">
@@ -305,13 +352,15 @@
                 <label class="toggle"><input id="includeChild" type="checkbox" /><span>Child rider</span></label>
               </div>
             </div>
-            <div>
-              <label for="primaryDob">Primary birth date</label>
-              <input id="primaryDob" type="text" placeholder="MM/DD/YYYY" />
-            </div>
-            <div>
-              <label for="spouseDob">Spouse birth date</label>
-              <input id="spouseDob" type="text" placeholder="MM/DD/YYYY" />
+            <div class="dob-group" id="dobGroup">
+              <div class="dob-field">
+                <label for="primaryDob">Primary birth date</label>
+                <input id="primaryDob" type="text" placeholder="m/d/yy" />
+              </div>
+              <div class="dob-field">
+                <label for="spouseDob">Spouse birth date</label>
+                <input id="spouseDob" type="text" placeholder="m/d/yy" />
+              </div>
             </div>
           </div>
           <div class="actions" style="margin-top:14px;">
@@ -398,14 +447,19 @@
 
 
 <script>
-const VERSION = '1.14';
-const VERSION_DATE = '2026-03-31';
+const APP = Object.freeze({
+  VERSION: '1.23',
+  VERSION_DATE: '2026-03-31',
+  TITLE_BASE: 'Life Quote Workflow'
+});
+const VERSION = APP.VERSION;
+const VERSION_DATE = APP.VERSION_DATE;
 const STORAGE_KEY = 'life-quote-history-v113';
 const RATE_CLASS_OPTIONS = ['PP','P','N','T'];
 const RATE_CLASS_LABELS = { PP: 'Preferred Plus', P: 'Preferred', N: 'Non-Tobacco', T: 'Tobacco' };
-const PRODUCT_OPTIONS = ['C4-10','C4-15','C4-20','C4-30','Cust Exch','T.Now-10','T.Now-15','T.Now-20','T.Now-30','T.Now-35','C6-10','C6-15','C6-20','C6-30','C6-35','CST-95','CST-Banded','Cust-10','Eagle-20','IBR','Other'];
+const PRODUCT_OPTIONS = ['C4-10','C4-15','C4-20','C4-30','Cust Exch','T.Now-10','T.Now-15','T.Now-20','T.Now-30','T.Now-35','C6-10','C6-15','C6-20','C6-30','C6-35','CST-95','CST-Banded','Eagle-20','IBR','Other'];
 const MANUAL_PRODUCTS = new Set(['IBR','Other']);
-const UNSUPPORTED_PRODUCTS = new Set(['Cust-10']);
+const UNSUPPORTED_PRODUCTS = new Set();
 const COVERAGE_TYPES = ['Base Plan','Rider 1','Rider 2','Rider 3'];
 const RATE_CLASS_RULES = {
   'C4-10': ['P','N','T'],
@@ -415,7 +469,6 @@ const RATE_CLASS_RULES = {
   'Cust Exch': ['P','N','T'],
   'CST-95': ['P','N','T'],
   'CST-Banded': ['P','N','T'],
-  'Cust-10': ['P','N','T'],
   'Eagle-20': ['P','N','T'],
   'IBR': ['P','N','T'],
   'Other': ['P','N','T'],
@@ -430,7 +483,7 @@ const RATE_CLASS_RULES = {
   'C6-30': ['PP','P','N','T'],
   'C6-35': ['PP','P','N','T']
 };
-const PRODUCT_META = {"C4-10": {"rate_lookup": 6, "wp_lookup": 2, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "C4-15": {"rate_lookup": 18, "wp_lookup": 5, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "C4-20": {"rate_lookup": 30, "wp_lookup": 8, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "C4-30": {"rate_lookup": "custom", "wp_lookup": 8, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "Cust Exch": {"rate_lookup": 202, "wp_lookup": 53, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "T.Now-10": {"rate_lookup": 110, "wp_lookup": 38, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "T.Now-15": {"rate_lookup": 102, "wp_lookup": 41, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "T.Now-20": {"rate_lookup": 94, "wp_lookup": 44, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "T.Now-30": {"rate_lookup": 86, "wp_lookup": 47, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "T.Now-35": {"rate_lookup": 78, "wp_lookup": 50, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "C6-10": {"rate_lookup": 190, "wp_lookup": 38, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "C6-15": {"rate_lookup": 174, "wp_lookup": 41, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "C6-20": {"rate_lookup": 158, "wp_lookup": 44, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "C6-30": {"rate_lookup": 142, "wp_lookup": 47, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "C6-35": {"rate_lookup": 126, "wp_lookup": 50, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "CST-95": {"rate_lookup": 38, "wp_lookup": 11, "policy_fee": 50, "band_lookup": 0, "class_lookup": 3}, "CST-Banded": {"rate_lookup": 60, "wp_lookup": 35, "policy_fee": 75, "band_lookup": 3, "class_lookup": 4}, "Cust-10": {"rate_lookup": "n/a", "wp_lookup": null, "policy_fee": 50, "band_lookup": null, "class_lookup": null}, "Eagle-20": {"rate_lookup": 42, "wp_lookup": 32, "policy_fee": 75, "band_lookup": 3, "class_lookup": 4}, "IBR": {"rate_lookup": null, "wp_lookup": null, "policy_fee": "n/a", "band_lookup": null, "class_lookup": null}, "Other": {"rate_lookup": null, "wp_lookup": null, "policy_fee": 50, "band_lookup": null, "class_lookup": null}};
+const PRODUCT_META = {"C4-10": {"rate_lookup": 6, "wp_lookup": 2, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "C4-15": {"rate_lookup": 18, "wp_lookup": 5, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "C4-20": {"rate_lookup": 30, "wp_lookup": 8, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "C4-30": {"rate_lookup": "custom", "wp_lookup": 8, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "Cust Exch": {"rate_lookup": 202, "wp_lookup": 53, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "T.Now-10": {"rate_lookup": 110, "wp_lookup": 38, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "T.Now-15": {"rate_lookup": 102, "wp_lookup": 41, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "T.Now-20": {"rate_lookup": 94, "wp_lookup": 44, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "T.Now-30": {"rate_lookup": 86, "wp_lookup": 47, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "T.Now-35": {"rate_lookup": 78, "wp_lookup": 50, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "C6-10": {"rate_lookup": 190, "wp_lookup": 38, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "C6-15": {"rate_lookup": 174, "wp_lookup": 41, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "C6-20": {"rate_lookup": 158, "wp_lookup": 44, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "C6-30": {"rate_lookup": 142, "wp_lookup": 47, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "C6-35": {"rate_lookup": 126, "wp_lookup": 50, "policy_fee": 75, "band_lookup": 1, "class_lookup": 2}, "CST-95": {"rate_lookup": 38, "wp_lookup": 11, "policy_fee": 50, "band_lookup": 0, "class_lookup": 3}, "CST-Banded": {"rate_lookup": 60, "wp_lookup": 35, "policy_fee": 75, "band_lookup": 3, "class_lookup": 4}, "Eagle-20": {"rate_lookup": 42, "wp_lookup": 32, "policy_fee": 75, "band_lookup": 3, "class_lookup": 4}, "IBR": {"rate_lookup": null, "wp_lookup": null, "policy_fee": "n/a", "band_lookup": null, "class_lookup": null}, "Other": {"rate_lookup": null, "wp_lookup": null, "policy_fee": 50, "band_lookup": null, "class_lookup": null}};
 const C4_30_RATE_TABLE = {
   "18": { p: [1.14, 1.14, 0.94, 0.89], n: [1.61, 1.51, 1.24, 1.17], t: [2.57, 2.37, 1.95, 1.84] },
   "19": { p: [1.14, 1.14, 0.94, 0.89], n: [1.61, 1.51, 1.24, 1.17], t: [2.57, 2.37, 1.95, 1.84] },
@@ -509,11 +562,18 @@ function makeLine(type) {
   };
 }
 
-function footer() {
-  document.getElementById('footerMeta').textContent = `Version ${VERSION} • version date ${VERSION_DATE}`;
+
+function syncAppVersion() {
+  document.title = `${APP.TITLE_BASE} v${APP.VERSION}`;
+  const footerMeta = document.getElementById('footerMeta');
   const versionEl = document.getElementById('metaVersion');
+  if (footerMeta) footerMeta.textContent = `Version ${APP.VERSION} • version date ${APP.VERSION_DATE}`;
+  if (versionEl) versionEl.textContent = APP.VERSION;
+}
+
+function footer() {
+  syncAppVersion();
   const calcEl = document.getElementById('metaCalcStatus');
-  if (versionEl) versionEl.textContent = VERSION;
   if (calcEl) calcEl.textContent = 'Standalone JS logic';
 }
 
@@ -839,7 +899,7 @@ function renderCoverageSection(containerId, side) {
         </div>
         <div>
           <label>Anniversary date</label>
-          <input data-field="anniversary" data-side="${side}" data-index="${index}" type="text" value="${escapeHtml(line.anniversary)}" placeholder="MM/DD/YYYY" />
+          <input data-field="anniversary" data-side="${side}" data-index="${index}" type="text" value="${escapeHtml(line.anniversary)}" placeholder="m/d/yy" class="date-placeholder" />
         </div>
       </div>      <div class="manual-box ${manualVisible ? '' : 'hidden'}">
         <div class="manual-title">Manual rate input required</div>
@@ -1001,12 +1061,6 @@ function renderDiagnostics() {
     if (MANUAL_PRODUCTS.has(line.product) && state.includeWaiver === 'Yes' && !line.manualWpCost) {
       items.push({ cls: 'err', title: `${label}: waiver cost per thousand needed`, note: 'Because waiver of premium is turned on for this manual-rate product.' });
     }
-    if (UNSUPPORTED_PRODUCTS.has(line.product)) {
-      items.push({ cls: 'warn', title: `${label}: Cust-10 is not wired yet`, note: 'This version carries over most workbook logic, but Cust-10 still needs a dedicated rule path.' });
-    }
-    if (line.product && lineCalc.effectiveClass && line.rateClass && lineCalc.effectiveClass.toUpperCase() !== line.rateClass.toUpperCase()) {
-      items.push({ cls: 'warn', title: `${label}: rate class auto-adjusted to ${rateClassLabel(lineCalc.effectiveClass)}`, note: 'Preferred and Preferred Plus automatically move to Non-Tobacco when that insured has less than 150 in total coverage across their own products.' });
-    }
     if (line.product && amount !== null && lineCalc.age !== null && !lineCalc.unsupported && lineCalc.baseRate === null && !MANUAL_PRODUCTS.has(line.product)) {
       items.push({ cls: 'err', title: `${label}: product not available at this age / band / class`, note: 'The extracted rate lookup did not return a valid rate.' });
     }
@@ -1044,8 +1098,6 @@ function renderDiagnostics() {
 
 function updateSummary() {
   const calc = calculations();
-  document.getElementById('kpiClient').textContent = state.quoteName || '—';
-  document.getElementById('kpiBilling').textContent = state.billingMode;
   document.getElementById('kpiPremium').textContent = money(calc.totalModal || 0);
   const premiumModeEl = document.getElementById('kpiPremiumMode');
   if (premiumModeEl) premiumModeEl.textContent = state.billingMode;
@@ -1057,6 +1109,23 @@ function updateSummary() {
   const metaSpouse = document.getElementById('metaSpouse');
   if (metaPrimary) metaPrimary.textContent = primaryText;
   if (metaSpouse) metaSpouse.textContent = spouseText;
+}
+
+
+function updateDobEmphasis() {
+  const group = document.getElementById('dobGroup');
+  const primary = document.getElementById('primaryDob');
+  const spouse = document.getElementById('spouseDob');
+  if (!group || !primary || !spouse) return;
+
+  const primaryMissing = !state.primaryDob.trim();
+  const spouseRequired = state.includeSpouse === 'Yes';
+  const spouseMissing = spouseRequired && !state.spouseDob.trim();
+  const groupUrgent = primaryMissing || spouseMissing;
+
+  group.classList.toggle('is-urgent', groupUrgent);
+  primary.classList.toggle('dob-missing', primaryMissing);
+  spouse.classList.toggle('dob-missing', spouseMissing);
 }
 
 
@@ -1232,8 +1301,9 @@ function deleteQuote(id) {
 function renderSavedQuotes() {
   const root = document.getElementById('savedQuotes');
   const items = loadSavedQuotes();
+  const reminderHtml = `<div class="saved-quotes-reminder"><strong>Reminder:</strong> Do not include personal identifiable information. Avoid using full names with real birthdates when saving quotes.</div>`;
   if (!items.length) {
-    root.innerHTML = `<div class="soft-box">No saved quotes yet.</div>`;
+    root.innerHTML = `<div class="soft-box">No saved quotes yet.</div>${reminderHtml}`;
     return;
   }
   root.innerHTML = items.map(item => {
@@ -1254,7 +1324,7 @@ function renderSavedQuotes() {
         <div class="quote-data">Primary lines: ${primaryCount}${item.includeSpouse === 'Yes' ? ` • Spouse lines: ${spouseCount}` : ''}${item.includeChild === 'Yes' ? ` • Child rider ${escapeHtml(item.childCoverage || '')}` : ''}${item.primaryDob ? ` • Primary DOB: ${escapeHtml(item.primaryDob)}` : ''}</div>
       </div>
     `;
-  }).join('');
+  }).join('') + reminderHtml;
 
   root.querySelectorAll('[data-load-id]').forEach(btn => btn.onclick = () => loadQuote(btn.dataset.loadId));
   root.querySelectorAll('[data-delete-id]').forEach(btn => btn.onclick = () => deleteQuote(btn.dataset.deleteId));
@@ -1294,6 +1364,7 @@ function rerender() {
   document.getElementById('spousePanel').classList.toggle('hidden', state.includeSpouse !== 'Yes');
   document.getElementById('childPanel').classList.toggle('hidden', state.includeChild !== 'Yes');
   bindHeaderInputs();
+  updateDobEmphasis();
   renderCoverageSection('primaryCoverage', 'primary');
   renderCoverageSection('spouseCoverage', 'spouse');
   renderChildSection();

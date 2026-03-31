@@ -1,0 +1,14 @@
+Copyright © 2026 BBuisson188. All rights reserved.
+
+This software is provided for personal and authorized business use only.
+
+You may use this software as intended by the copyright holder. However, you may NOT:
+
+- Copy, reproduce, or redistribute this software in whole or in part
+- Modify, adapt, or create derivative works based on this software
+- Reverse engineer, decompile, or attempt to extract the underlying logic
+- Use this software to build or recreate a competing or similar product
+
+No rights or licenses are granted except those expressly stated above.
+
+For any additional permissions, contact the copyright holder.

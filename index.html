@@ -267,12 +267,12 @@
   }
   .hint { margin-top: 5px; color: var(--muted); font-size: 12px; }
   .soft-box { background: var(--soft); border:1px dashed #d7e3f1; border-radius:16px; padding:12px; }
-  .row-card { border:1px solid #dfe8f3; border-radius:18px; background:white; padding:14px; }
-  .row-card + .row-card { margin-top:12px; }
-  .row-top { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:10px; }
+  .row-card { border:1px solid #dfe8f3; border-radius:18px; background:white; padding:12px; }
+  .row-card + .row-card { margin-top:10px; }
+  .row-top { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:8px; }
   .row-title { font-size:16px; font-weight:800; letter-spacing:-.02em; }
   .row-sub { color: var(--muted); font-size:12px; margin-top:2px; }
-  .row-grid { display:grid; grid-template-columns: 1.15fr .9fr .9fr .95fr; gap:10px; }
+  .row-grid { display:grid; grid-template-columns: 1.15fr .9fr .9fr .95fr; gap:8px; }
   .toggle-row { display:flex; gap:14px; align-items:stretch; flex-wrap:wrap; margin-top:10px; }
   .toggle-row label.toggle {
     display:flex; align-items:center; gap:10px; text-transform:none; letter-spacing:0;
@@ -281,10 +281,10 @@
   }
   .toggle-row label.toggle input[type="checkbox"] { width:18px; height:18px; margin:0; flex:0 0 auto; }
   .toggle-row label.toggle span { line-height:1.2; }
-  .manual-box { margin-top:10px; padding:12px; border-radius:16px; background:#fffaf4; border:1px solid #fed7aa; }
+  .manual-box { margin-top:8px; padding:12px; border-radius:16px; background:#fffaf4; border:1px solid #fed7aa; }
   .manual-title { font-weight:800; color:var(--amber); margin-bottom:8px; }
-  .result-box { margin-top:10px; padding:12px; border-radius:16px; background:#f7fbff; border:1px solid #dbeafe; }
-  .result-grid { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:10px; }
+  .result-box { margin-top:8px; padding:10px 12px; border-radius:16px; background:#f7fbff; border:1px solid #dbeafe; }
+  .result-grid { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:8px; }
   .result-k { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:#64748b; font-weight:700; }
   .result-v { margin-top:4px; font-size:15px; font-weight:800; color:#0f172a; }
   .result-main { margin-top:10px; display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap; }
@@ -297,7 +297,10 @@
   .ghost-btn:hover { background:#f8fbff; }
   .solid-btn { background:#1d4ed8; color:white; border-color:#1d4ed8; }
   .danger-btn { color: var(--red); border-color: #fecaca; background: #fff7f7; }
-  .actions { display:flex; flex-wrap:wrap; gap:10px; }
+  .actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+  .rated-control { display:flex; align-items:center; gap:6px; width:auto; }
+  .rated-control label { margin:0; font-size:10px; line-height:1; }
+  .rated-control select { width:112px; min-height:36px; padding:7px 9px; font-size:13px; }
   .diag-list { display:flex; flex-direction:column; gap:10px; }
   .diag-item { border-radius:14px; padding:12px 14px; font-size:14px; line-height:1.45; border:1px solid #e6edf7; background:white; box-shadow: 0 8px 18px rgba(15,23,42,.04); }
   .diag-item small { display:block; color: var(--muted); margin-top:4px; }
@@ -481,8 +484,8 @@
 
 <script>
 const APP = Object.freeze({
-  VERSION: '1.24',
-  VERSION_DATE: '2026-04-12',
+  VERSION: '1.25',
+  VERSION_DATE: '2026-04-30',
   TITLE_BASE: 'Life Quote Workflow'
 });
 const VERSION = APP.VERSION;
@@ -495,6 +498,16 @@ const PRODUCT_OPTIONS = ['C4-10','C4-15','C4-20','C4-30','Cust Exch','T.Now-10',
 const MANUAL_PRODUCTS = new Set(['IBR','Other']);
 const UNSUPPORTED_PRODUCTS = new Set();
 const COVERAGE_TYPES = ['Base Plan','Rider 1','Rider 2','Rider 3'];
+const TABLE_RATING_FACTORS = {
+  '1': 1.25,
+  '2': 1.5,
+  '3': 1.75,
+  '4': 2,
+  '5': 2.25,
+  '6': 2.5,
+  '7': 2.75,
+  '8': 3
+};
 const RATE_CLASS_RULES = {
   'C4-10': ['P','N','T'],
   'C4-15': ['P','N','T'],
@@ -590,6 +603,7 @@ function makeLine(type) {
     product: 'Cust Exch',
     amount: '',
     rateClass: 'N',
+    ratingTable: '',
     anniversary: '',
     manualCost: '',
     manualWpCost: ''
@@ -617,6 +631,18 @@ function lineCount(lines) {
 
 function createOptions(selected, options, labels = null) {
   return options.map(v => `<option value="${v}" ${selected === v ? 'selected' : ''}>${labels && labels[v] ? labels[v] : v}</option>`).join('');
+}
+
+function ratingTableOptions(selected) {
+  const current = String(selected || '');
+  const ratedOptions = Object.entries(TABLE_RATING_FACTORS)
+    .map(([table, factor]) => `<option value="${table}" ${current === table ? 'selected' : ''}>Table ${table} (${factor})</option>`)
+    .join('');
+  return `<option value="" ${current === '' ? 'selected' : ''}>No rating</option>${ratedOptions}`;
+}
+
+function tableRatingFactor(value) {
+  return TABLE_RATING_FACTORS[String(value || '')] || 1;
 }
 
 function rateClassLabel(code) {
@@ -698,6 +724,10 @@ function money(value) {
   return Number.isFinite(value) ? value.toLocaleString(undefined, { style: 'currency', currency: 'USD' }) : '—';
 }
 
+function formatRate(value) {
+  return Number.isFinite(value) ? Number(value.toFixed(4)).toString() : '—';
+}
+
 function ageFromDates(dobValue, annivValue) {
   const dob = parseDate(dobValue);
   const anniv = parseDate(annivValue);
@@ -776,6 +806,7 @@ function computeLine(line, side, index, totalCoverage, insuredCoverage) {
     modalWp: null,
     modalTotal: null,
     baseRate: null,
+    ratingFactor: tableRatingFactor(line.ratingTable),
     wpRate: null,
     unsupported: false,
     feeApplied: 0
@@ -826,8 +857,9 @@ function computeLine(line, side, index, totalCoverage, insuredCoverage) {
   }
 
   if (!Number.isFinite(baseRate)) return result;
-  result.baseRate = baseRate;
-  result.annualBase = roundWorkbook(baseRate * amount + fee);
+  const ratedBaseRate = baseRate * result.ratingFactor;
+  result.baseRate = ratedBaseRate;
+  result.annualBase = roundWorkbook(ratedBaseRate * amount + fee);
   result.modalBase = roundWorkbook(result.annualBase * factor);
 
   if (state.includeWaiver === 'Yes') {
@@ -909,6 +941,12 @@ function renderCoverageSection(containerId, side) {
           <div class="row-sub">${side === 'primary' ? 'Primary insured' : 'Spouse insured'}</div>
         </div>
         <div class="actions">
+          <div class="rated-control">
+            <label>Rated</label>
+            <select data-field="ratingTable" data-side="${side}" data-index="${index}">
+              ${ratingTableOptions(line.ratingTable)}
+            </select>
+          </div>
           ${canAddNext ? `<button class="ghost-btn" data-action="add-next" data-side="${side}" data-index="${index}">Add next rider</button>` : ''}
           ${index > 0 ? `<button class="danger-btn" data-action="remove-line" data-side="${side}" data-index="${index}">Remove</button>` : ''}
         </div>
@@ -961,11 +999,11 @@ function renderCoverageSection(containerId, side) {
           </div>
           <div>
             <div class="result-k">Base rate</div>
-            <div class="result-v mono">${calc.baseRate ?? '—'}</div>
+            <div class="result-v mono">${formatRate(calc.baseRate)}</div>
           </div>
           <div>
             <div class="result-k">WP rate</div>
-            <div class="result-v mono">${calc.wpRate ?? '—'}</div>
+            <div class="result-v mono">${formatRate(calc.wpRate)}</div>
           </div>
         </div>
         <div class="result-main">
@@ -1374,9 +1412,9 @@ function loadQuote(id) {
     spouse: item.spouse || [makeLine('Base Plan')]
   });
   while (state.primary.length < 4) state.primary.push(makeLine(COVERAGE_TYPES[state.primary.length]));
-  state.primary.forEach(line => { line.rateClass = (line.rateClass || '').toUpperCase(); coerceRateClassForProduct(line); });
+  state.primary.forEach(line => { line.rateClass = (line.rateClass || '').toUpperCase(); line.ratingTable = line.ratingTable || ''; coerceRateClassForProduct(line); });
   while (state.spouse.length < 4) state.spouse.push(makeLine(COVERAGE_TYPES[state.spouse.length]));
-  state.spouse.forEach(line => { line.rateClass = (line.rateClass || '').toUpperCase(); coerceRateClassForProduct(line); });
+  state.spouse.forEach(line => { line.rateClass = (line.rateClass || '').toUpperCase(); line.ratingTable = line.ratingTable || ''; coerceRateClassForProduct(line); });
   rerender();
 }
 

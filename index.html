@@ -495,8 +495,8 @@
 
 <script>
 const APP = Object.freeze({
-  VERSION: '1.26',
-  VERSION_DATE: '2026-04-30',
+  VERSION: '1.27',
+  VERSION_DATE: '2026-05-07',
   TITLE_BASE: 'Life Quote Workflow'
 });
 const VERSION = APP.VERSION;
@@ -617,6 +617,7 @@ function makeLine(type) {
     ratingTable: '',
     anniversary: '',
     manualCost: '',
+    manualPolicyFee: '',
     manualWpCost: ''
   };
 }
@@ -786,9 +787,13 @@ function getEffectiveRateClass(line, insuredCoverage) {
   return selected;
 }
 
-function getProductFee(product, totalCoverage, isPrimaryBase) {
+function getProductFee(line, totalCoverage, isPrimaryBase) {
+  const product = line.product;
   if (!isPrimaryBase || !product) return 0;
   if (product === 'IBR') return 0;
+  if (product === 'Other') {
+    return numericAmount(line.manualPolicyFee) || 0;
+  }
   if (product === 'CST-Banded' || product === 'Eagle-20') {
     return getSpecialBand(totalCoverage).fee;
   }
@@ -836,7 +841,7 @@ function computeLine(line, side, index, totalCoverage, insuredCoverage) {
   }
 
   const isPrimaryBase = side === 'primary' && index === 0;
-  const fee = getProductFee(product, totalCoverage, isPrimaryBase);
+  const fee = getProductFee(line, totalCoverage, isPrimaryBase);
   result.feeApplied = fee;
 
   let baseRate = null;
@@ -942,6 +947,7 @@ function renderCoverageSection(containerId, side) {
     const canAddNext = index < 3 && !lines[index + 1]?.enabled;
     const manualVisible = MANUAL_PRODUCTS.has(line.product);
     const showWpManual = manualVisible && state.includeWaiver === 'Yes';
+    const showManualPolicyFee = side === 'primary' && index === 0 && line.product === 'Other';
     const effectiveClassLabel = calc.effectiveClass ? rateClassLabel(calc.effectiveClass) : '—';
     const card = document.createElement('div');
     card.className = 'row-card';
@@ -991,12 +997,16 @@ function renderCoverageSection(containerId, side) {
             <label>Cost per thousand</label>
             <input data-field="manualCost" data-side="${side}" data-index="${index}" type="text" value="${escapeHtml(line.manualCost)}" placeholder="Enter cost per 1,000" />
           </div>
+          <div class="${showManualPolicyFee ? '' : 'hidden'}">
+            <label>Policy fee</label>
+            <input data-field="manualPolicyFee" data-side="${side}" data-index="${index}" type="text" value="${escapeHtml(line.manualPolicyFee)}" placeholder="Annual policy fee" />
+          </div>
           <div class="${showWpManual ? '' : 'hidden'}">
             <label>Waiver of premium cost per thousand</label>
             <input data-field="manualWpCost" data-side="${side}" data-index="${index}" type="text" value="${escapeHtml(line.manualWpCost)}" placeholder="Enter WP cost per 1,000" />
           </div>
         </div>
-        <div class="hint">This appears only for IBR and Other, since those use manual cost input instead of a rate table.</div>
+        <div class="hint">Cost per thousand appears for IBR and Other. Manual policy fee appears only when the primary base plan product is Other.</div>
       </div>
       <div class="result-box">
         <div class="result-grid">
@@ -1140,6 +1150,14 @@ function renderDiagnostics() {
     }
     if (MANUAL_PRODUCTS.has(line.product) && !line.manualCost) {
       items.push({ cls: 'err', title: `${label}: manual cost per thousand needed`, note: 'IBR and Other need manual cost entry.' });
+    }
+    if (side === 'primary' && index === 0 && line.product === 'Other') {
+      const manualPolicyFee = numericAmount(line.manualPolicyFee);
+      if (!line.manualPolicyFee) {
+        items.push({ cls: 'err', title: `${label}: manual policy fee needed`, note: 'Other needs an annual policy fee entry when it is the base plan.' });
+      } else if (manualPolicyFee === null) {
+        items.push({ cls: 'err', title: `${label}: manual policy fee is not numeric`, note: 'Use a numeric annual policy fee.' });
+      }
     }
     if (MANUAL_PRODUCTS.has(line.product) && state.includeWaiver === 'Yes' && !line.manualWpCost) {
       items.push({ cls: 'err', title: `${label}: waiver cost per thousand needed`, note: 'Because waiver of premium is turned on for this manual-rate product.' });
@@ -1423,9 +1441,9 @@ function loadQuote(id) {
     spouse: item.spouse || [makeLine('Base Plan')]
   });
   while (state.primary.length < 4) state.primary.push(makeLine(COVERAGE_TYPES[state.primary.length]));
-  state.primary.forEach(line => { line.rateClass = (line.rateClass || '').toUpperCase(); line.ratingTable = line.ratingTable || ''; coerceRateClassForProduct(line); });
+  state.primary.forEach(line => { line.rateClass = (line.rateClass || '').toUpperCase(); line.ratingTable = line.ratingTable || ''; line.manualPolicyFee = line.manualPolicyFee || ''; coerceRateClassForProduct(line); });
   while (state.spouse.length < 4) state.spouse.push(makeLine(COVERAGE_TYPES[state.spouse.length]));
-  state.spouse.forEach(line => { line.rateClass = (line.rateClass || '').toUpperCase(); line.ratingTable = line.ratingTable || ''; coerceRateClassForProduct(line); });
+  state.spouse.forEach(line => { line.rateClass = (line.rateClass || '').toUpperCase(); line.ratingTable = line.ratingTable || ''; line.manualPolicyFee = line.manualPolicyFee || ''; coerceRateClassForProduct(line); });
   rerender();
 }
 

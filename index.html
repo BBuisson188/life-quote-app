@@ -273,6 +273,7 @@
   .row-title { font-size:16px; font-weight:800; letter-spacing:-.02em; }
   .row-sub { color: var(--muted); font-size:12px; margin-top:2px; }
   .row-grid { display:grid; grid-template-columns: 1.15fr .9fr .9fr .95fr; gap:8px; }
+  .row-grid.c4-ibr-grid { grid-template-columns: 1.15fr .9fr .9fr .95fr .65fr; }
   .toggle-row { display:flex; gap:14px; align-items:stretch; flex-wrap:wrap; margin-top:10px; }
   .toggle-row label.toggle {
     display:flex; align-items:center; gap:10px; text-transform:none; letter-spacing:0;
@@ -497,8 +498,8 @@
 
 <script>
 const APP = Object.freeze({
-  VERSION: '1.27',
-  VERSION_DATE: '2026-05-07',
+  VERSION: '1.28',
+  VERSION_DATE: '2026-08-12',
   TITLE_BASE: 'Life Quote Workflow'
 });
 const VERSION = APP.VERSION;
@@ -507,8 +508,9 @@ const STORAGE_KEY = 'life-quote-history';
 const STORAGE_MIGRATION_KEY = 'life-quote-history-migrated-v1';
 const RATE_CLASS_OPTIONS = ['PP','P','N','T'];
 const RATE_CLASS_LABELS = { PP: 'Preferred Plus', P: 'Preferred', N: 'Non-Tobacco', T: 'Tobacco' };
-const PRODUCT_OPTIONS = ['C4-10','C4-15','C4-20','C4-30','Cust Exch','T.Now-10','T.Now-15','T.Now-20','T.Now-30','T.Now-35','C6-10','C6-15','C6-20','C6-30','C6-35','CST-95','CST-Banded','Eagle-20','IBR','Other'];
+const PRODUCT_OPTIONS = ['C4-10','C4-15','C4-20','C4-30','C4-IBR','Cust Exch','T.Now-10','T.Now-15','T.Now-20','T.Now-30','T.Now-35','C6-10','C6-15','C6-20','C6-30','C6-35','CST-95','CST-Banded','Eagle-20','IBR','Other'];
 const C4_PRODUCTS = new Set(['C4-10','C4-15','C4-20','C4-30']);
+const IBR_PRODUCTS = new Set(['C4-IBR','IBR']);
 const RATE_BASIS_OPTIONS = ['original','subsequent'];
 const RATE_BASIS_LABELS = { original: 'Orig', subsequent: 'Subseq' };
 const MANUAL_PRODUCTS = new Set(['IBR','Other']);
@@ -529,6 +531,7 @@ const RATE_CLASS_RULES = {
   'C4-15': ['P','N','T'],
   'C4-20': ['P','N','T'],
   'C4-30': ['P','N','T'],
+  'C4-IBR': ['P','N','T'],
   'Cust Exch': ['P','N','T'],
   'CST-95': ['P','N','T'],
   'CST-Banded': ['P','N','T'],
@@ -699,6 +702,7 @@ function makeLine(type) {
     rateClass: 'N',
     ratingTable: '',
     rateBasis: 'original',
+    ibrIncreases: '',
     anniversary: '',
     manualCost: '',
     manualPolicyFee: '',
@@ -843,12 +847,23 @@ function ageFromDates(dobValue, annivValue) {
   const dob = parseDate(dobValue);
   const anniv = parseDate(annivValue);
   if (!dob || !anniv) return null;
+  return insuranceAgeAtDate(dob, anniv);
+}
+
+function insuranceAgeAtDate(dob, anniv) {
+  if (!(dob instanceof Date) || !(anniv instanceof Date)) return null;
   return Math.round((anniv - dob) / (DAYS_PER_YEAR * 24 * 60 * 60 * 1000));
 }
 
 function totalNonIbrCoverage(side = null) {
   return allLines()
-    .filter(({ side: lineSide, line }) => (!side || lineSide === side) && line.enabled && line.product && line.product !== 'IBR')
+    .filter(({ side: lineSide, line }) => (!side || lineSide === side) && line.enabled && line.product && !IBR_PRODUCTS.has(line.product))
+    .reduce((sum, { line }) => sum + (numericAmount(line.amount) || 0), 0);
+}
+
+function totalC4Coverage(side) {
+  return allLines()
+    .filter(({ side: lineSide, line }) => lineSide === side && line.enabled && C4_PRODUCTS.has(line.product))
     .reduce((sum, { line }) => sum + (numericAmount(line.amount) || 0), 0);
 }
 
@@ -885,8 +900,19 @@ function normalizeLineForLoad(line) {
   line.rateClass = (line.rateClass || '').toUpperCase();
   line.ratingTable = line.ratingTable || '';
   line.manualPolicyFee = line.manualPolicyFee || '';
+  line.ibrIncreases = line.ibrIncreases || '';
   line.rateBasis = isC4Product(line.product) && line.rateBasis === 'subsequent' ? 'subsequent' : 'original';
   coerceRateClassForProduct(line);
+}
+
+function getC420Rate(age, effectiveClass, c4Coverage) {
+  const meta = PRODUCT_META['C4-20'];
+  const classAdjustments = RATE_CLASS_ADJUSTMENTS[meta.class_lookup];
+  if (!classAdjustments || !(effectiveClass in classAdjustments)) return null;
+  const row = RATE_TABLE[String(age)];
+  const colIndex = meta.rate_lookup + classAdjustments[effectiveClass] + getStandardBandOffset(c4Coverage);
+  const rate = row?.[colIndex - 1];
+  return rate === null || rate === undefined || rate === '' ? null : Number(rate);
 }
 
 function getSpecialBand(totalCoverage) {
@@ -910,7 +936,7 @@ function getEffectiveRateClass(line, insuredCoverage) {
 function getProductFee(line, totalCoverage, isPrimaryBase) {
   const product = line.product;
   if (!isPrimaryBase || !product) return 0;
-  if (product === 'IBR') return 0;
+  if (IBR_PRODUCTS.has(product)) return 0;
   if (product === 'Other') {
     return numericAmount(line.manualPolicyFee) || 0;
   }
@@ -921,7 +947,7 @@ function getProductFee(line, totalCoverage, isPrimaryBase) {
   return typeof fee === 'number' ? fee : 0;
 }
 
-function computeLine(line, side, index, totalCoverage, insuredCoverage) {
+function computeLine(line, side, index, totalCoverage, insuredCoverage, c4Coverage) {
   const product = line.product;
   const amount = numericAmount(line.amount);
   const effectiveClass = getEffectiveRateClass(line, insuredCoverage);
@@ -949,7 +975,11 @@ function computeLine(line, side, index, totalCoverage, insuredCoverage) {
     rateBasis: line.rateBasis || 'original',
     levelYears: null,
     levelUntil: '',
-    wpUnavailable: false
+    wpUnavailable: false,
+    wpUnavailableMessage: '',
+    ibrIncreaseCount: null,
+    ibrIncreaseAmount: null,
+    ibrIssue: ''
   };
 
   if (!product || amount === null || age === null) return result;
@@ -958,7 +988,7 @@ function computeLine(line, side, index, totalCoverage, insuredCoverage) {
     return result;
   }
 
-  const meta = PRODUCT_META[product];
+  const meta = product === 'C4-IBR' ? PRODUCT_META['C4-20'] : PRODUCT_META[product];
   if (!meta) {
     result.unsupported = true;
     return result;
@@ -970,12 +1000,53 @@ function computeLine(line, side, index, totalCoverage, insuredCoverage) {
 
   let baseRate = null;
 
+  if (product === 'C4-IBR' && state.includeWaiver === 'Yes') {
+    result.wpUnavailable = true;
+    result.wpUnavailableMessage = 'Waiver is not available for automated C4-IBR quotes. Use manual IBR when waiver must be included.';
+    return result;
+  }
+
   if (isC4Product(product) && result.rateBasis === 'subsequent' && state.includeWaiver === 'Yes') {
     result.wpUnavailable = true;
     return result;
   }
 
-  if (isC4Product(product) && result.rateBasis === 'subsequent') {
+  if (product === 'C4-IBR') {
+    const increaseCount = Number(line.ibrIncreases);
+    if (!Number.isInteger(increaseCount) || increaseCount < 1 || increaseCount > 10) {
+      result.ibrIssue = 'increases';
+      return result;
+    }
+    if (!(c4Coverage > 0)) {
+      result.ibrIssue = 'band';
+      return result;
+    }
+
+    const dob = parseDate(insuredDob);
+    const originalAnniv = parseDate(line.anniversary);
+    const increaseAmount = amount / increaseCount;
+    const rates = [];
+    for (let increaseNumber = 1; increaseNumber <= increaseCount; increaseNumber++) {
+      const rateAge = increaseNumber <= 4
+        ? age
+        : insuranceAgeAtDate(dob, addYears(originalAnniv, increaseNumber));
+      const increaseRate = getC420Rate(rateAge, effectiveClass, c4Coverage);
+      if (!Number.isFinite(increaseRate)) {
+        result.ibrIssue = 'rate';
+        return result;
+      }
+      rates.push(increaseRate);
+    }
+
+    const ratedAnnual = rates.reduce((sum, rate) => sum + rate * increaseAmount, 0) * result.ratingFactor;
+    result.ibrIncreaseCount = increaseCount;
+    result.ibrIncreaseAmount = increaseAmount;
+    result.baseRate = (rates.reduce((sum, rate) => sum + rate, 0) / rates.length) * result.ratingFactor;
+    result.annualBase = roundWorkbook(ratedAnnual);
+    result.modalBase = roundWorkbook(result.annualBase * factor);
+    result.modalTotal = result.modalBase;
+    return result;
+  } else if (isC4Product(product) && result.rateBasis === 'subsequent') {
     const row = C4_SUBSEQUENT_RATE_TABLE[String(age)];
     const normalizedClass = String(effectiveClass || '').toLowerCase();
     const classKey = normalizedClass === 'p' ? 'p' : normalizedClass === 'n' ? 'n' : normalizedClass === 't' ? 't' : null;
@@ -1046,6 +1117,8 @@ function calculations() {
   const totalCoverage = totalNonIbrCoverage();
   const primaryCoverage = totalNonIbrCoverage('primary');
   const spouseCoverage = totalNonIbrCoverage('spouse');
+  const primaryC4Coverage = totalC4Coverage('primary');
+  const spouseC4Coverage = totalC4Coverage('spouse');
   const out = {
     totalCoverage,
     primaryCoverage,
@@ -1059,7 +1132,8 @@ function calculations() {
   for (const { side, line, index } of allLines()) {
     if (!line.enabled) continue;
     const insuredCoverage = side === 'primary' ? primaryCoverage : spouseCoverage;
-    const calc = computeLine(line, side, index, totalCoverage, insuredCoverage);
+    const c4Coverage = side === 'primary' ? primaryC4Coverage : spouseC4Coverage;
+    const calc = computeLine(line, side, index, totalCoverage, insuredCoverage, c4Coverage);
     out.lines.push({ side, line, index, calc });
     out.totalModal += calc.modalTotal || 0;
   }
@@ -1092,13 +1166,18 @@ function renderCoverageSection(containerId, side) {
     const showManualPolicyFee = side === 'primary' && index === 0 && line.product === 'Other';
     const effectiveClassLabel = calc.effectiveClass ? rateClassLabel(calc.effectiveClass) : '—';
     const c4Line = isC4Product(line.product);
+    const c4IbrLine = line.product === 'C4-IBR';
     const rateBasis = line.rateBasis || 'original';
-    const annivLabel = c4Line ? (rateBasis === 'subsequent' ? 'New anniv' : 'Orig anniv') : 'Anniv date';
+    const annivLabel = c4IbrLine ? 'Orig anniv' : c4Line ? (rateBasis === 'subsequent' ? 'New anniv' : 'Orig anniv') : 'Anniv date';
     const levelNote = calc.levelUntil ? ` - Level until ${escapeHtml(calc.levelUntil)}` : '';
     const selectedClass = String(line.rateClass || '').toUpperCase();
     const effectiveClass = String(calc.effectiveClass || '').toUpperCase();
     const effectiveClassNote = effectiveClass && selectedClass && effectiveClass !== selectedClass ? ` - Effective class ${escapeHtml(rateClassLabel(effectiveClass))}` : '';
-    const ageNote = calc.age !== null && calc.age !== undefined ? `Age ${calc.age}` : 'Age pending';
+    const ageNote = calc.age !== null && calc.age !== undefined
+      ? c4IbrLine
+        ? `Issue age ${calc.age}${calc.ibrIncreaseCount ? ` - ${calc.ibrIncreaseCount} increase${calc.ibrIncreaseCount === 1 ? '' : 's'}` : ''}`
+        : `Age ${calc.age}`
+      : 'Age pending';
     const card = document.createElement('div');
     card.className = 'row-card';
     card.innerHTML = `
@@ -1125,7 +1204,7 @@ function renderCoverageSection(containerId, side) {
           ${index > 0 ? `<button class="danger-btn" data-action="remove-line" data-side="${side}" data-index="${index}">Remove</button>` : ''}
         </div>
       </div>
-      <div class="row-grid">
+      <div class="row-grid ${c4IbrLine ? 'c4-ibr-grid' : ''}">
         <div>
           <label>Product</label>
           <select data-field="product" data-side="${side}" data-index="${index}">
@@ -1134,7 +1213,7 @@ function renderCoverageSection(containerId, side) {
           </select>
         </div>
         <div>
-          <label>Coverage amount</label>
+          <label>${c4IbrLine ? 'Current IBR coverage' : 'Coverage amount'}</label>
           <input data-field="amount" data-side="${side}" data-index="${index}" type="text" value="${escapeHtml(line.amount)}" placeholder="Amount in thousands" />
         </div>
         <div>
@@ -1147,6 +1226,10 @@ function renderCoverageSection(containerId, side) {
           <label>${annivLabel}</label>
           <input data-field="anniversary" data-side="${side}" data-index="${index}" type="text" value="${escapeHtml(line.anniversary)}" placeholder="m/d/yy" class="date-placeholder" />
         </div>
+        ${c4IbrLine ? `<div>
+          <label>Increases</label>
+          <input data-field="ibrIncreases" data-side="${side}" data-index="${index}" type="number" min="1" max="10" step="1" value="${escapeHtml(line.ibrIncreases)}" placeholder="1-10" />
+        </div>` : ''}
       </div>      <div class="manual-box ${manualVisible ? '' : 'hidden'}">
         <div class="manual-title">Manual rate input required</div>
         <div class="input-grid">
@@ -1319,10 +1402,29 @@ function renderDiagnostics() {
     if (MANUAL_PRODUCTS.has(line.product) && state.includeWaiver === 'Yes' && !line.manualWpCost) {
       items.push({ cls: 'err', title: `${label}: waiver cost per thousand needed`, note: 'Because waiver of premium is turned on for this manual-rate product.' });
     }
-    if (lineCalc.wpUnavailable) {
-      items.push({ cls: 'err', title: `${label}: waiver not available for C4 subsequent rates`, note: 'Turn off waiver of premium or switch this C4 line back to original anniversary rates.' });
+    if (line.product === 'C4-IBR') {
+      const increaseCount = Number(line.ibrIncreases);
+      if (!line.ibrIncreases) {
+        items.push({ cls: 'err', title: `${label}: number of increases needed`, note: 'Enter how many increases were actually accepted, from 1 through 10.' });
+      } else if (!Number.isInteger(increaseCount) || increaseCount < 1 || increaseCount > 10) {
+        items.push({ cls: 'err', title: `${label}: increases must be 1 through 10`, note: 'Use the actual whole number of increases that occurred before they stopped.' });
+      }
+      if (totalC4Coverage(side) <= 0) {
+        items.push({ cls: 'err', title: `${label}: regular C4 coverage needed for banding`, note: 'Add the insured\'s existing C4 coverage so C4-IBR can inherit its rate band.' });
+      }
+      if (lineCalc.ibrIssue === 'rate') {
+        items.push({ cls: 'err', title: `${label}: C4-20 rate unavailable`, note: 'A required issue-age or attained-age C4-20 rate was not available for this quote.' });
+      }
     }
-    if (line.product && amount !== null && lineCalc.age !== null && !lineCalc.unsupported && !lineCalc.wpUnavailable && lineCalc.baseRate === null && !MANUAL_PRODUCTS.has(line.product)) {
+    if (lineCalc.wpUnavailable) {
+      const c4IbrWaiver = line.product === 'C4-IBR';
+      items.push({
+        cls: 'err',
+        title: `${label}: waiver not available for ${c4IbrWaiver ? 'C4-IBR' : 'C4 subsequent rates'}`,
+        note: lineCalc.wpUnavailableMessage || 'Turn off waiver of premium or switch this C4 line back to original anniversary rates.'
+      });
+    }
+    if (line.product && line.product !== 'C4-IBR' && amount !== null && lineCalc.age !== null && !lineCalc.unsupported && !lineCalc.wpUnavailable && lineCalc.baseRate === null && !MANUAL_PRODUCTS.has(line.product)) {
       items.push({ cls: 'err', title: `${label}: product not available at this age / band / class`, note: 'The extracted rate lookup did not return a valid rate.' });
     }
     if (state.includeWaiver === 'Yes' && line.product && amount !== null && lineCalc.baseRate !== null && lineCalc.wpRate === null && !lineCalc.wpUnavailable) {
@@ -1510,7 +1612,9 @@ function getQuoteTabItems() {
   const addCoverageFields = (side) => {
     state[side].forEach((line, index) => {
       if (!line.enabled) return;
-      ['product', 'amount', 'rateClass', 'anniversary'].forEach(field => {
+      const fields = ['product', 'amount', 'rateClass', 'anniversary'];
+      if (line.product === 'C4-IBR') fields.push('ibrIncreases');
+      fields.forEach(field => {
         items.push({ field, side, index });
       });
     });

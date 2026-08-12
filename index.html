@@ -348,6 +348,21 @@
 .saved-quotes-reminder strong{
   color:var(--ink);
 }
+.page-switch-link {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-height:38px;
+  padding:8px 12px;
+  color:#355a8e;
+  border:1px solid #d4e0ee;
+  border-radius:12px;
+  background:rgba(255,255,255,.72);
+  font-size:12px;
+  font-weight:800;
+  text-decoration:none;
+}
+.page-switch-link:hover { background:#f8fbff; }
 
 </style>
 </head>
@@ -452,6 +467,7 @@
     </div>
 
     <div class="stack" id="savedQuotesStack">
+      <a class="page-switch-link" href="new-quote.html">Switch to New Biz</a>
       <div class="panel support-panel">
         <div class="panel-head">
           <div class="section-kicker">Saved work</div>

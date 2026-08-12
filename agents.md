@@ -175,6 +175,23 @@ For subsequent C4 quotes:
 * The initial implementation should only quote the current subsequent premium. Do not project future-year premiums from the workbook unless the user explicitly asks for that later.
 * Waiver of premium is not currently available for subsequent C4 rates. If waiver is selected and a C4 line is set to subsequent rates, block that line's quote and show a clear warning instead of silently quoting an incomplete premium.
 
+### C4 increasing benefit rider
+
+Keep the existing manual `IBR` product available. `C4-IBR` is a separate automated option for old riders whose increases have already stopped.
+
+For C4-IBR:
+
+* Enter the current accumulated IBR coverage and the actual number of accepted increases, from 1 through 10.
+* Do not ask for 5% or 10%. The current accumulated coverage is already known, so no coverage projection is needed.
+* Do not apply a discount. If a discounted case is encountered later, use the manual IBR option until a verified rule is supplied.
+* Use the insured's birth date and the C4-IBR original anniversary date to calculate issue insurance age using the existing nearest-birthday method.
+* Increases 1 through 4 use the C4-20 rate at issue insurance age.
+* Increases 5 through 10 use the C4-20 rate at insurance age on each corresponding anniversary. Increase number 5 occurs five years after the original anniversary date.
+* Divide the current accumulated IBR coverage evenly across the accepted increases for premium calculation.
+* C4-IBR inherits its band from that insured's regular C4 coverage. Do not add C4-IBR coverage to its own band or to the banding for other products.
+* No policy fee or discount is applied to C4-IBR.
+* Waiver is not approved for automated C4-IBR. If waiver is selected, block the C4-IBR line and direct the user to manual IBR when waiver must be included.
+
 ## Change strategy
 
 When asked to make a change:

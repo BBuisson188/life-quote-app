@@ -291,8 +291,12 @@
     .policy-controls label.toggle:first-child { align-self:end; }
   }
   .manual-box { margin-top:8px; padding:12px; border-radius:16px; background:#fffaf4; border:1px solid #fed7aa; }
-  .manual-title { font-weight:800; color:var(--amber); margin-bottom:8px; }
-  .result-box { margin-top:8px; padding:8px 10px; border-radius:14px; background:#f7fbff; border:1px solid #dbeafe; }
+  .manual-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
+  .manual-title { font-weight:800; color:var(--amber); }
+  .manual-mode { width:auto; min-width:118px; padding:7px 28px 7px 9px; font-size:12px; font-weight:800; }
+  .manual-band-grid { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:8px; }
+  .manual-band-grid label { white-space:nowrap; }
+  .result-box { position:relative; margin-top:8px; padding:8px 42px 8px 10px; border-radius:14px; background:#f7fbff; border:1px solid #dbeafe; }
   .result-grid { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:8px; }
   .result-k { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:#64748b; font-weight:700; }
   .result-v { margin-top:4px; font-size:15px; font-weight:800; color:#0f172a; }
@@ -301,6 +305,43 @@
   .result-note { font-size:12px; color:#64748b; }
   .line-result .result-grid,
   .line-result .result-main > .result-note { display:none; }
+  .quote-breakdown > summary {
+    position:absolute;
+    top:8px;
+    right:8px;
+    width:28px;
+    height:28px;
+    border-radius:8px;
+    cursor:pointer;
+    list-style:none;
+  }
+  .quote-breakdown > summary::-webkit-details-marker { display:none; }
+  .quote-breakdown > summary::before {
+    content:'';
+    position:absolute;
+    width:8px;
+    height:8px;
+    top:7px;
+    left:9px;
+    border-right:2px solid #4f6b95;
+    border-bottom:2px solid #4f6b95;
+    transform:rotate(45deg);
+    transition:transform .16s ease, top .16s ease;
+  }
+  .quote-breakdown > summary:hover { background:#eaf3ff; }
+  .quote-breakdown > summary:focus-visible { outline:2px solid #60a5fa; outline-offset:2px; }
+  .quote-breakdown[open] > summary::before { top:11px; transform:rotate(225deg); }
+  .quote-breakdown-grid {
+    display:grid;
+    grid-template-columns:repeat(4, minmax(0,1fr));
+    gap:10px 14px;
+    margin-top:10px;
+    padding-top:10px;
+    border-top:1px solid #dbeafe;
+  }
+  .quote-breakdown-item { min-width:0; }
+  .quote-breakdown-k { color:#64748b; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; }
+  .quote-breakdown-v { margin-top:3px; color:#0f172a; font-size:13px; font-weight:800; }
   .ghost-btn, .solid-btn, .danger-btn {
     border:1px solid #cdd9e7; background:white; color:#0f172a; padding:9px 12px;
     border-radius:12px; font-weight:700; cursor:pointer; font-size:14px;
@@ -347,6 +388,8 @@
   @media (max-width: 760px) {
     .wrap { padding:14px; }
     .summary-grid, .input-grid, .row-grid, .result-grid, .dob-group { grid-template-columns:1fr; }
+    .quote-breakdown-grid { grid-template-columns:repeat(2, minmax(0,1fr)); }
+    .manual-band-grid { grid-template-columns:repeat(2, minmax(0,1fr)); }
   }
 
 .saved-quotes-reminder{
@@ -520,8 +563,8 @@
 
 <script>
 const APP = Object.freeze({
-  VERSION: '1.28',
-  VERSION_DATE: '2026-08-12',
+  VERSION: '1.30',
+  VERSION_DATE: '2026-08-24',
   TITLE_BASE: 'Life Quote Workflow'
 });
 const VERSION = APP.VERSION;
@@ -727,6 +770,11 @@ function makeLine(type) {
     ibrIncreases: '',
     anniversary: '',
     manualCost: '',
+    manualRateMode: 'basic',
+    manualBandUnder150: '',
+    manualBand150To250: '',
+    manualBand250To500: '',
+    manualBand500Plus: '',
     manualPolicyFee: '',
     manualWpCost: ''
   };
@@ -850,6 +898,12 @@ function formatRate(value) {
   return Number.isFinite(value) ? Number(value.toFixed(4)).toString() : '—';
 }
 
+function formatDetailRate(value) {
+  return Number.isFinite(value)
+    ? value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })
+    : '—';
+}
+
 function isC4Product(product) {
   return C4_PRODUCTS.has(product);
 }
@@ -922,6 +976,11 @@ function normalizeLineForLoad(line) {
   line.rateClass = (line.rateClass || '').toUpperCase();
   line.ratingTable = line.ratingTable || '';
   line.manualPolicyFee = line.manualPolicyFee || '';
+  line.manualRateMode = line.product === 'Other' && line.manualRateMode === 'banded' ? 'banded' : 'basic';
+  line.manualBandUnder150 = line.manualBandUnder150 || '';
+  line.manualBand150To250 = line.manualBand150To250 || '';
+  line.manualBand250To500 = line.manualBand250To500 || '';
+  line.manualBand500Plus = line.manualBand500Plus || '';
   line.ibrIncreases = line.ibrIncreases || '';
   line.rateBasis = isC4Product(line.product) && line.rateBasis === 'subsequent' ? 'subsequent' : 'original';
   coerceRateClassForProduct(line);
@@ -969,6 +1028,13 @@ function getProductFee(line, totalCoverage, isPrimaryBase) {
   return typeof fee === 'number' ? fee : 0;
 }
 
+function getOtherBandedRate(line, totalCoverage) {
+  if (totalCoverage >= 500) return numericAmount(line.manualBand500Plus);
+  if (totalCoverage >= 250) return numericAmount(line.manualBand250To500);
+  if (totalCoverage >= 150) return numericAmount(line.manualBand150To250);
+  return numericAmount(line.manualBandUnder150);
+}
+
 function computeLine(line, side, index, totalCoverage, insuredCoverage, c4Coverage) {
   const product = line.product;
   const amount = numericAmount(line.amount);
@@ -985,6 +1051,9 @@ function computeLine(line, side, index, totalCoverage, insuredCoverage, c4Covera
     wpAge,
     effectiveClass,
     annualBase: null,
+    annualCoverage: null,
+    annualWithoutFee: null,
+    annualTotal: null,
     modalBase: null,
     annualWp: null,
     modalWp: null,
@@ -994,6 +1063,7 @@ function computeLine(line, side, index, totalCoverage, insuredCoverage, c4Covera
     wpRate: null,
     unsupported: false,
     feeApplied: 0,
+    bandCoverage: null,
     rateBasis: line.rateBasis || 'original',
     levelYears: null,
     levelUntil: '',
@@ -1065,6 +1135,10 @@ function computeLine(line, side, index, totalCoverage, insuredCoverage, c4Covera
     result.ibrIncreaseAmount = increaseAmount;
     result.baseRate = (rates.reduce((sum, rate) => sum + rate, 0) / rates.length) * result.ratingFactor;
     result.annualBase = roundWorkbook(ratedAnnual);
+    result.annualCoverage = result.annualBase;
+    result.annualWithoutFee = result.annualBase;
+    result.annualTotal = result.annualBase;
+    result.bandCoverage = c4Coverage;
     result.modalBase = roundWorkbook(result.annualBase * factor);
     result.modalTotal = result.modalBase;
     return result;
@@ -1072,10 +1146,11 @@ function computeLine(line, side, index, totalCoverage, insuredCoverage, c4Covera
     const row = C4_SUBSEQUENT_RATE_TABLE[String(age)];
     const normalizedClass = String(effectiveClass || '').toLowerCase();
     const classKey = normalizedClass === 'p' ? 'p' : normalizedClass === 'n' ? 'n' : normalizedClass === 't' ? 't' : null;
-    const bandIndex = getC4SubsequentBandIndex(classKey, insuredCoverage);
+    const bandIndex = getC4SubsequentBandIndex(classKey, totalCoverage);
     const rateSet = row && classKey ? row[classKey] : null;
     if (!row || bandIndex === null || !rateSet || rateSet[bandIndex] === null || rateSet[bandIndex] === undefined || rateSet[bandIndex] === '') return result;
     baseRate = Number(rateSet[bandIndex]);
+    result.bandCoverage = totalCoverage;
     if (Number.isFinite(row.levelYears)) {
       const anniv = parseDate(line.anniversary);
       result.levelYears = row.levelYears;
@@ -1090,16 +1165,24 @@ function computeLine(line, side, index, totalCoverage, insuredCoverage, c4Covera
     const rateSet = row[classKey];
     if (!rateSet || rateSet[bandIndex] === null || rateSet[bandIndex] === undefined || rateSet[bandIndex] === '') return result;
     baseRate = Number(rateSet[bandIndex]);
+    result.bandCoverage = totalCoverage;
   } else if (MANUAL_PRODUCTS.has(product)) {
-    baseRate = numericAmount(line.manualCost);
+    if (product === 'Other' && line.manualRateMode === 'banded') {
+      baseRate = getOtherBandedRate(line, totalCoverage);
+      result.bandCoverage = totalCoverage;
+    } else {
+      baseRate = numericAmount(line.manualCost);
+    }
   } else if (typeof meta.rate_lookup === 'number') {
     const classAdjustments = RATE_CLASS_ADJUSTMENTS[meta.class_lookup];
     if (!classAdjustments || !(effectiveClass in classAdjustments)) return result;
     let bandOffset = 0;
     if (meta.band_lookup === 3) {
       bandOffset = getSpecialBand(totalCoverage).offset;
+      result.bandCoverage = totalCoverage;
     } else if (meta.band_lookup === 1) {
       bandOffset = getStandardBandOffset(totalCoverage);
+      result.bandCoverage = totalCoverage;
     }
     const colIndex = meta.rate_lookup + classAdjustments[effectiveClass] + bandOffset;
     const row = RATE_TABLE[String(age)];
@@ -1109,8 +1192,10 @@ function computeLine(line, side, index, totalCoverage, insuredCoverage, c4Covera
 
   if (!Number.isFinite(baseRate)) return result;
   const ratedBaseRate = baseRate * result.ratingFactor;
+  const rawAnnualCoverage = ratedBaseRate * amount;
   result.baseRate = ratedBaseRate;
-  result.annualBase = roundWorkbook(ratedBaseRate * amount + fee);
+  result.annualCoverage = roundWorkbook(rawAnnualCoverage);
+  result.annualBase = roundWorkbook(rawAnnualCoverage + fee);
   result.modalBase = roundWorkbook(result.annualBase * factor);
 
   if (state.includeWaiver === 'Yes') {
@@ -1131,6 +1216,8 @@ function computeLine(line, side, index, totalCoverage, insuredCoverage, c4Covera
     }
   }
 
+  result.annualWithoutFee = (result.annualCoverage || 0) + (result.annualWp || 0);
+  result.annualTotal = (result.annualBase || 0) + (result.annualWp || 0);
   result.modalTotal = (result.modalBase || 0) + (result.modalWp || 0);
   return result;
 }
@@ -1184,6 +1271,7 @@ function renderCoverageSection(containerId, side) {
     const calc = calcMap.get(index) || {};
     const canAddNext = index < 3 && !lines[index + 1]?.enabled;
     const manualVisible = MANUAL_PRODUCTS.has(line.product);
+    const otherBanded = line.product === 'Other' && line.manualRateMode === 'banded';
     const showWpManual = manualVisible && state.includeWaiver === 'Yes';
     const showManualPolicyFee = side === 'primary' && index === 0 && line.product === 'Other';
     const effectiveClassLabel = calc.effectiveClass ? rateClassLabel(calc.effectiveClass) : '—';
@@ -1253,9 +1341,17 @@ function renderCoverageSection(containerId, side) {
           <input data-field="ibrIncreases" data-side="${side}" data-index="${index}" type="number" min="1" max="10" step="1" value="${escapeHtml(line.ibrIncreases)}" placeholder="1-10" />
         </div>` : ''}
       </div>      <div class="manual-box ${manualVisible ? '' : 'hidden'}">
-        <div class="manual-title">Manual rate input required</div>
+        <div class="manual-head">
+          <div class="manual-title">Manual rate input required</div>
+          ${line.product === 'Other' ? `
+            <select class="manual-mode" data-field="manualRateMode" data-side="${side}" data-index="${index}" aria-label="Other rate setup">
+              <option value="basic" ${line.manualRateMode !== 'banded' ? 'selected' : ''}>Basic rate</option>
+              <option value="banded" ${line.manualRateMode === 'banded' ? 'selected' : ''}>Banded rates</option>
+            </select>
+          ` : ''}
+        </div>
         <div class="input-grid">
-          <div>
+          <div class="${otherBanded ? 'hidden' : ''}">
             <label>Cost per thousand</label>
             <input data-field="manualCost" data-side="${side}" data-index="${index}" type="text" value="${escapeHtml(line.manualCost)}" placeholder="Enter cost per 1,000" />
           </div>
@@ -1268,7 +1364,27 @@ function renderCoverageSection(containerId, side) {
             <input data-field="manualWpCost" data-side="${side}" data-index="${index}" type="text" value="${escapeHtml(line.manualWpCost)}" placeholder="Enter WP cost per 1,000" />
           </div>
         </div>
-        <div class="hint">Cost per thousand appears for IBR and Other. Manual policy fee appears only when the primary base plan product is Other.</div>
+        ${otherBanded ? `
+          <div class="manual-band-grid">
+            <div>
+              <label>Under $150k</label>
+              <input data-field="manualBandUnder150" data-side="${side}" data-index="${index}" type="text" value="${escapeHtml(line.manualBandUnder150)}" placeholder="Rate" />
+            </div>
+            <div>
+              <label>$150k-$249k</label>
+              <input data-field="manualBand150To250" data-side="${side}" data-index="${index}" type="text" value="${escapeHtml(line.manualBand150To250)}" placeholder="Rate" />
+            </div>
+            <div>
+              <label>$250k-$499k</label>
+              <input data-field="manualBand250To500" data-side="${side}" data-index="${index}" type="text" value="${escapeHtml(line.manualBand250To500)}" placeholder="Rate" />
+            </div>
+            <div>
+              <label>$500k+</label>
+              <input data-field="manualBand500Plus" data-side="${side}" data-index="${index}" type="text" value="${escapeHtml(line.manualBand500Plus)}" placeholder="Rate" />
+            </div>
+          </div>
+          <div class="hint">Band selected from combined policy coverage, excluding IBR and C4-IBR.</div>
+        ` : `<div class="hint">Cost per thousand appears for IBR and Other. Manual policy fee appears only when the primary base plan product is Other.</div>`}
       </div>
       <div class="result-box line-result">
         <div class="result-grid">
@@ -1296,6 +1412,47 @@ function renderCoverageSection(containerId, side) {
           </div>
           <div class="result-note">Base ${money(calc.modalBase || 0)}${calc.modalWp ? ` • WP ${money(calc.modalWp)}` : ''}${calc.feeApplied ? ` • Fee included ${money(calc.feeApplied)} annual` : ''}</div>
         </div>
+        <details class="quote-breakdown">
+          <summary aria-label="Show quote calculation details" title="Show quote calculation details"></summary>
+          <div class="quote-breakdown-grid">
+            <div class="quote-breakdown-item">
+              <div class="quote-breakdown-k">Cost per $1,000</div>
+              <div class="quote-breakdown-v mono">${formatDetailRate(calc.baseRate)}</div>
+            </div>
+            <div class="quote-breakdown-item">
+              <div class="quote-breakdown-k">Insurance age</div>
+              <div class="quote-breakdown-v mono">${calc.age ?? '—'}</div>
+            </div>
+            <div class="quote-breakdown-item">
+              <div class="quote-breakdown-k">Effective class</div>
+              <div class="quote-breakdown-v">${effectiveClassLabel}</div>
+            </div>
+            <div class="quote-breakdown-item">
+              <div class="quote-breakdown-k">Banding coverage</div>
+              <div class="quote-breakdown-v mono">${Number.isFinite(calc.bandCoverage) ? money(calc.bandCoverage * 1000) : '—'}</div>
+            </div>
+            <div class="quote-breakdown-item">
+              <div class="quote-breakdown-k">Coverage annual</div>
+              <div class="quote-breakdown-v mono">${money(calc.annualCoverage)}</div>
+            </div>
+            ${state.includeWaiver === 'Yes' ? `<div class="quote-breakdown-item">
+              <div class="quote-breakdown-k">Waiver annual</div>
+              <div class="quote-breakdown-v mono">${money(calc.annualWp)}</div>
+            </div>` : ''}
+            <div class="quote-breakdown-item">
+              <div class="quote-breakdown-k">Policy fee</div>
+              <div class="quote-breakdown-v mono">${money(calc.feeApplied || 0)}</div>
+            </div>
+            <div class="quote-breakdown-item">
+              <div class="quote-breakdown-k">Annual without fee</div>
+              <div class="quote-breakdown-v mono">${money(calc.annualWithoutFee)}</div>
+            </div>
+            <div class="quote-breakdown-item">
+              <div class="quote-breakdown-k">Annual with fee</div>
+              <div class="quote-breakdown-v mono">${money(calc.annualTotal)}</div>
+            </div>
+          </div>
+        </details>
       </div>
     `;
     container.appendChild(card);
@@ -1410,8 +1567,16 @@ function renderDiagnostics() {
         note: 'Coverage amount is under 15 for this product. This warning does not block the quote.'
       });
     }
-    if (MANUAL_PRODUCTS.has(line.product) && !line.manualCost) {
-      items.push({ cls: 'err', title: `${label}: manual cost per thousand needed`, note: 'IBR and Other need manual cost entry.' });
+    if (MANUAL_PRODUCTS.has(line.product)) {
+      const usesOtherBands = line.product === 'Other' && line.manualRateMode === 'banded';
+      const selectedManualRate = usesOtherBands ? getOtherBandedRate(line, calc.totalCoverage) : numericAmount(line.manualCost);
+      if (!Number.isFinite(selectedManualRate)) {
+        items.push({
+          cls: 'err',
+          title: `${label}: manual cost per thousand needed`,
+          note: usesOtherBands ? 'Enter a rate for the band selected by the combined non-IBR policy coverage.' : 'IBR and Other need manual cost entry.'
+        });
+      }
     }
     if (side === 'primary' && index === 0 && line.product === 'Other') {
       const manualPolicyFee = numericAmount(line.manualPolicyFee);

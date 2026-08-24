@@ -146,6 +146,12 @@ In other words:
 * But do not surface low-priority informational diagnostics there.
 * Coverage under 15 is a meaningful warning but should not block quote calculation.
 
+### 10\) Combined coverage banding
+
+Rate bands are based on combined enabled policy coverage across products and insureds. Both manual `IBR` and automated `C4-IBR` coverage are excluded and must not move any other product into a different band. Preferred eligibility remains a separate per-insured calculation.
+
+For the manual `Other` product, the agent can use either one basic cost-per-thousand rate or four fixed manual bands: under $150,000, $150,000 through $249,999, $250,000 through $499,999, and $500,000 or more. The banded rate uses the same combined non-IBR policy coverage. Band thresholds are not editable and additional bands are not currently supported.
+
 ## Product-specific notes
 
 ### Removed / unavailable option
@@ -170,6 +176,7 @@ All C4 products use the same subsequent rate table.
 For subsequent C4 quotes:
 
 * The anniversary field represents the new anniversary date.
+* Rate banding uses the combined eligible policy coverage across primary and spouse lines, consistent with original C4 banding. Preferred-class eligibility under $150,000 is still evaluated separately for each insured.
 * The UI should keep this option compact and avoid a large redesign.
 * The line should show a month/year note like `Level until Jun 2031` when the rate has a level period.
 * The initial implementation should only quote the current subsequent premium. Do not project future-year premiums from the workbook unless the user explicitly asks for that later.
@@ -191,6 +198,10 @@ For C4-IBR:
 * C4-IBR inherits its band from that insured's regular C4 coverage. Do not add C4-IBR coverage to its own band or to the banding for other products.
 * No policy fee or discount is applied to C4-IBR.
 * Waiver is not approved for automated C4-IBR. If waiver is selected, block the C4-IBR line and direct the user to manual IBR when waiver must be included.
+
+### Expandable quote details
+
+Each base or rider line keeps its live modal premium compact by default. A small disclosure arrow in the result area expands calculation details for review, including cost per thousand, insurance age, effective class, banding coverage, annual coverage premium, waiver when applicable, policy fee, and annual totals before and after the fee.
 
 ## Change strategy
 

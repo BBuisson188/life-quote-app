@@ -203,6 +203,10 @@ For C4-IBR:
 
 Each base or rider line keeps its live modal premium compact by default. A small disclosure arrow in the result area expands calculation details for review, including cost per thousand, insurance age, effective class, banding coverage, annual coverage premium, waiver when applicable, policy fee, and annual totals before and after the fee.
 
+### Saved quote updates
+
+Saving uses the current client name as the only matching rule. If that name exactly matches a saved draft after trimming outside spaces, update the newest matching entry. If there is no exact match, create a new saved draft. Renaming a loaded quote therefore creates a new entry and leaves the originally loaded draft unchanged.
+
 ## Change strategy
 
 When asked to make a change:

@@ -563,8 +563,8 @@
 
 <script>
 const APP = Object.freeze({
-  VERSION: '1.30',
-  VERSION_DATE: '2026-08-24',
+  VERSION: '1.32',
+  VERSION_DATE: '2026-08-25',
   TITLE_BASE: 'Life Quote Workflow'
 });
 const VERSION = APP.VERSION;
@@ -1869,9 +1869,9 @@ function handleQuoteTabOrder(event) {
   setTimeout(() => focusQuoteTabItem(next), 0);
 }
 
-function savedQuotePayload() {
+function savedQuotePayload(id = null) {
   return {
-    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+    id: id || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())),
     savedAt: new Date().toISOString(),
     quoteName: state.quoteName,
     billingMode: state.billingMode,
@@ -1953,7 +1953,15 @@ function saveSavedQuotes(items) {
 
 function saveCurrentQuote() {
   const items = loadSavedQuotes();
-  items.unshift(savedQuotePayload());
+  const quoteName = state.quoteName.trim();
+  const existingIndex = quoteName
+    ? items.findIndex(item => String(item.quoteName || '').trim() === quoteName)
+    : -1;
+
+  const existingId = existingIndex >= 0 ? items[existingIndex].id : null;
+  const payload = savedQuotePayload(existingId);
+  if (existingIndex >= 0) items.splice(existingIndex, 1);
+  items.unshift(payload);
   saveSavedQuotes(items);
   rerender();
 }

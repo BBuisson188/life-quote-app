@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Year-by-Year Breakdown</title>
+<style>
+  :root {
+    --text:#10203a;
+    --muted:#64748b;
+    --blue:#23457c;
+    --line:#d9e5f3;
+    --soft:#f4f7fb;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0;
+    padding:24px;
+    font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    color:var(--text);
+    background:var(--soft);
+  }
+  .page { width:100%; margin:0 auto; }
+  .top {
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:18px;
+    margin-bottom:18px;
+  }
+  .eyebrow {
+    color:#4f6b95;
+    font-size:11px;
+    font-weight:800;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+  }
+  h1 { margin:5px 0 4px; font-size:clamp(24px,3vw,34px); letter-spacing:-.025em; }
+  .sub { color:var(--muted); font-size:13px; }
+  .actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+  button {
+    border:1px solid #cdd9e7;
+    border-radius:11px;
+    background:#fff;
+    color:var(--text);
+    padding:10px 14px;
+    font-size:13px;
+    font-weight:800;
+    cursor:pointer;
+  }
+  button.primary { border-color:var(--blue); background:var(--blue); color:#fff; }
+  .table-wrap {
+    overflow:auto;
+    max-height:calc(100vh - 150px);
+    border:1px solid var(--line);
+    border-radius:16px;
+    background:#fff;
+    box-shadow:0 14px 34px rgba(15,23,42,.08);
+  }
+  table {
+    width:100%;
+    border-collapse:separate;
+    border-spacing:0;
+    min-width:var(--table-min-width, 820px);
+    font-variant-numeric:tabular-nums;
+  }
+  th, td {
+    padding:10px 12px;
+    border-right:1px solid #e5edf6;
+    border-bottom:1px solid #e5edf6;
+    text-align:right;
+    white-space:nowrap;
+    font-size:13px;
+  }
+  thead th {
+    position:sticky;
+    top:0;
+    z-index:3;
+    background:#eaf2fc;
+    color:#1f3d68;
+    font-weight:800;
+    text-align:center;
+  }
+  thead tr:nth-child(2) th { top:38px; }
+  thead tr:nth-child(3) th { top:86px; }
+  tbody th {
+    position:sticky;
+    left:0;
+    z-index:2;
+    background:#f8fbff;
+    text-align:left;
+  }
+  tbody tr:nth-child(even) td,
+  tbody tr:nth-child(even) th { background:#fbfdff; }
+  .group-head { background:var(--blue); color:#fff; }
+  .line-head small { display:block; margin-top:3px; color:var(--muted); font-weight:700; }
+  .line-head-wrap { display:flex; align-items:center; justify-content:center; gap:8px; }
+  .line-head-copy { line-height:1.15; }
+  button.dt-toggle {
+    flex:0 0 auto;
+    padding:5px 7px;
+    border-color:#93b4df;
+    border-radius:8px;
+    color:#23457c;
+    font-size:10px;
+    line-height:1.1;
+    white-space:nowrap;
+  }
+  button.dt-toggle:hover { background:#eaf3ff; }
+  button.dt-toggle.active { border-color:#166534; background:#eaf8ef; color:#166534; }
+  .coverage { color:#334155; }
+  .premium { font-weight:800; }
+  .premium.unavailable { color:#9a5b0a; }
+  .premium.expired { color:var(--muted); }
+  .total,
+  .total-head {
+    position:sticky;
+    right:0;
+    z-index:2;
+    background:#eef5ff !important;
+    font-weight:900;
+  }
+  .total-head { z-index:4; }
+  .notes,
+  .empty {
+    margin-top:18px;
+    padding:16px 18px;
+    border:1px solid var(--line);
+    border-radius:14px;
+    background:#fff;
+    color:#475569;
+    font-size:13px;
+    line-height:1.5;
+  }
+  .notes h2,
+  .empty h2 { margin:0 0 8px; color:#1f3d68; font-size:15px; }
+  .notes ul { margin:8px 0; padding-left:20px; }
+  .notes div + div { margin-top:7px; }
+  .hidden { display:none !important; }
+  @media (max-width:700px) {
+    body { padding:14px; }
+    .top { flex-direction:column; }
+    .actions { justify-content:flex-start; }
+    .table-wrap { max-height:calc(100vh - 190px); }
+  }
+  @media print {
+    body { padding:0; background:#fff; }
+    .actions { display:none; }
+    .table-wrap { overflow:visible; max-height:none; box-shadow:none; }
+    thead th, tbody th, .total, .total-head { position:static; }
+    table { min-width:0 !important; }
+    th, td { padding:5px; font-size:9px; }
+    .notes { break-inside:avoid; }
+  }
+</style>
+</head>
+<body>
+<main class="page">
+  <div class="top">
+    <div>
+      <div class="eyebrow">End-of-term quote projection</div>
+      <h1 id="pageTitle">Year-by-year breakdown</h1>
+      <div class="sub" id="pageSubtitle"></div>
+    </div>
+    <div class="actions">
+      <button id="closeBtn" type="button">Close breakdown</button>
+      <button class="primary" id="printBtn" type="button">Print</button>
+    </div>
+  </div>
+
+  <div class="table-wrap" id="tableWrap">
+    <table>
+      <thead id="projectionHead"></thead>
+      <tbody id="projectionBody"></tbody>
+    </table>
+  </div>
+
+  <section class="notes" id="projectionNotes">
+    <h2>Projection notes</h2>
+    <ul id="lineNotes"></ul>
+    <div>C4 coverage is held level. Original C4 rates remain level for the product's named initial term, then move to the shared C4 subsequent table. Subsequent blocks are held for the number of years in that table; age 99 is the final premium year and the policy is shown as expired in the year the insured turns 100.</div>
+    <div>For an eligible DT100 conversion, the first subsequent year's premium and coverage stay unchanged. Beginning the following year, that premium remains level while coverage is calculated from the C4 DT100 face-amount table using basic annual premium before the $75 policy fee.</div>
+    <div>Custom Exchange coverage remains level for policy years 1–10, then automatically decreases using the policy's issue-age column from the Custom Exchange death-benefit table. Its base premium and policy fee remain level.</div>
+    <div>When Custom Exchange is converted to ART at policy year 11, its original coverage remains level and its premium changes annually using attained-age ART rates. The current effective class, combined coverage band, table rating, billing mode, and applicable $75 base-policy fee are used.</div>
+    <div>Other product families and riders remain visible but are marked <strong>Rate unavailable</strong> until their projection rules are added. Current combined coverage bands and table ratings are held constant throughout this version.</div>
+    <div><strong>*</strong> Partial total: excludes an unavailable premium. <strong>†</strong> Waiver is omitted because its subsequent-period calculation is intentionally not projected. During an original level period, available waiver premium is removed beginning with age 60.</div>
+  </section>
+
+  <section class="empty hidden" id="emptyState">
+    <h2>No projection is ready</h2>
+    <div>Return to the end-of-term quote page and choose Year-by-year breakdown again.</div>
+  </section>
+</main>
+
+<script>
+const PROJECTION_STORAGE_KEY = 'life-quote-year-projection';
+const dt100Selections = new Set();
+const artSelections = new Set();
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function money(value) {
+  return Number.isFinite(value)
+    ? value.toLocaleString(undefined, { style:'currency', currency:'USD' })
+    : '—';
+}
+
+function readProjection() {
+  try {
+    const raw = sessionStorage.getItem(PROJECTION_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && Array.isArray(parsed.entries) && parsed.range ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function headerHtml(data) {
+  if (data.simple) {
+    return `<tr><th>Anniversary year</th><th>Coverage</th><th>${escapeHtml(data.billingMode)} premium</th></tr>`;
+  }
+  const groups = [];
+  data.entries.forEach(entry => {
+    let group = groups.find(item => item.name === entry.group);
+    if (!group) {
+      group = { name:entry.group, entries:[] };
+      groups.push(group);
+    }
+    group.entries.push(entry);
+  });
+  return `
+    <tr>
+      <th rowspan="3">Anniversary year</th>
+      ${groups.map(group => `<th colspan="${group.entries.length * 2}" class="group-head">${escapeHtml(group.name)}</th>`).join('')}
+      <th rowspan="3" class="total-head">Total ${escapeHtml(data.billingMode.toLowerCase())}</th>
+    </tr>
+    <tr>${data.entries.map((entry, index) => `<th colspan="2" class="line-head"><div class="line-head-wrap"><div class="line-head-copy">${escapeHtml(entry.label)}<small>${escapeHtml(entry.product)}</small></div>${entry.dt100Eligible ? `<button class="dt-toggle" type="button" data-dt-index="${index}" aria-pressed="false" title="Convert this line to decreasing term through age 100">Convert to DT100</button>` : entry.artEligible ? `<button class="dt-toggle" type="button" data-art-index="${index}" aria-pressed="false" title="Convert this Custom Exchange line to annual renewable term">Convert to ART</button>` : ''}</div></th>`).join('')}</tr>
+    <tr>${data.entries.map(() => `<th>Coverage</th><th>${escapeHtml(data.billingMode)} premium</th>`).join('')}</tr>
+  `;
+}
+
+function rowsHtml(data) {
+  const rows = [];
+  for (let year = data.range.startYear; year <= data.range.endYear; year++) {
+    const cells = data.entries.map((entry, index) => {
+      const source = artSelections.has(index) && entry.artCells
+        ? entry.artCells
+        : dt100Selections.has(index) && entry.dt100Cells ? entry.dt100Cells : entry.cells;
+      return source[String(year)] || { coverage:'—', premium:'Rate unavailable', partial:true };
+    });
+    const numericCells = cells.filter(cell => Number.isFinite(cell.premiumValue));
+    const activeUnavailable = cells.some(cell => cell.status === 'unavailable' || cell.partial);
+    const allExpired = cells.length > 0 && cells.every(cell => cell.status === 'expired');
+    const total = numericCells.reduce((sum, cell) => sum + cell.premiumValue, 0);
+    const totalText = allExpired
+      ? 'Expired'
+      : numericCells.length
+        ? `${money(total)}${activeUnavailable ? '*' : ''}`
+        : activeUnavailable ? 'Rate unavailable' : '—';
+    const dataCells = cells.map(cell => {
+      const premiumText = `${escapeHtml(cell.premium)}${cell.waiverOmitted ? '†' : ''}`;
+      return `<td class="coverage">${escapeHtml(cell.coverage)}</td><td class="premium ${escapeHtml(cell.status)}">${premiumText}</td>`;
+    }).join('');
+    rows.push(`<tr><th scope="row">${year}</th>${dataCells}${data.simple ? '' : `<td class="total">${escapeHtml(totalText)}</td>`}</tr>`);
+  }
+  return rows.join('');
+}
+
+function renderProjectionRows(data) {
+  document.getElementById('projectionBody').innerHTML = rowsHtml(data);
+}
+
+function bindDt100Buttons(data) {
+  document.querySelectorAll('[data-dt-index]').forEach(button => {
+    button.onclick = () => {
+      const index = Number(button.dataset.dtIndex);
+      if (dt100Selections.has(index)) {
+        dt100Selections.delete(index);
+        button.textContent = 'Convert to DT100';
+        button.classList.remove('active');
+        button.setAttribute('aria-pressed', 'false');
+      } else {
+        dt100Selections.add(index);
+        button.textContent = 'Use C4 rates';
+        button.classList.add('active');
+        button.setAttribute('aria-pressed', 'true');
+      }
+      renderProjectionRows(data);
+    };
+  });
+  document.querySelectorAll('[data-art-index]').forEach(button => {
+    button.onclick = () => {
+      const index = Number(button.dataset.artIndex);
+      if (artSelections.has(index)) {
+        artSelections.delete(index);
+        button.textContent = 'Convert to ART';
+        button.classList.remove('active');
+        button.setAttribute('aria-pressed', 'false');
+      } else {
+        artSelections.add(index);
+        button.textContent = 'Use decreasing term';
+        button.classList.add('active');
+        button.setAttribute('aria-pressed', 'true');
+      }
+      renderProjectionRows(data);
+    };
+  });
+}
+
+function renderProjection() {
+  const data = readProjection();
+  if (!data) {
+    document.getElementById('tableWrap').classList.add('hidden');
+    document.getElementById('projectionNotes').classList.add('hidden');
+    document.getElementById('emptyState').classList.remove('hidden');
+    document.getElementById('pageSubtitle').textContent = 'Projection data was not found.';
+    return;
+  }
+
+  document.title = data.title;
+  document.getElementById('pageTitle').textContent = data.title;
+  document.getElementById('pageSubtitle').textContent = `${data.billingMode} premiums by each product's anniversary year`;
+  document.getElementById('projectionHead').innerHTML = headerHtml(data);
+  renderProjectionRows(data);
+  bindDt100Buttons(data);
+  document.querySelector('table').style.setProperty('--table-min-width', data.simple ? '620px' : `${Math.max(820, 230 + data.entries.length * 300)}px`);
+  document.getElementById('lineNotes').innerHTML = data.entries.map(entry => `
+    <li><strong>${escapeHtml(entry.group)} — ${escapeHtml(entry.label)} (${escapeHtml(entry.product)}):</strong> ${escapeHtml(entry.basis)} ${escapeHtml(entry.date)}.${entry.dt100Eligible ? ` DT100 is available beginning at insurance age ${escapeHtml(entry.dt100ConversionAge)} on ${escapeHtml(entry.dt100ConversionDate)}.` : ''}${entry.artEligible ? ` ART is available beginning at insurance age ${escapeHtml(entry.artConversionAge)} on ${escapeHtml(entry.artConversionDate)}.` : ''}</li>
+  `).join('');
+}
+
+document.getElementById('closeBtn').onclick = () => window.close();
+document.getElementById('printBtn').onclick = () => window.print();
+renderProjection();
+</script>
+</body>
+</html>

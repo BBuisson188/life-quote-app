@@ -2,14 +2,14 @@
 
 ## Project summary
 
-This is a small insurance quote-sheet app that currently lives in a **single HTML file**. The file contains the UI, product/rate data wiring, quote logic, diagnostics, and premium display behavior.
+This is a small insurance quote-sheet app built with plain HTML, CSS, and JavaScript. The end-of-term quote page contains the primary product/rate data wiring, quote logic, diagnostics, and premium display behavior. Separate plain-HTML pages are used for the new-business workflow and the year-by-year projection.
 
 The main goal is to keep the project **simple, stable, and easy to hand off**. Do not introduce extra files, frameworks, or major refactors unless the user explicitly asks for that.
 
 ## Core operating rules
 
 1. **Read the entire HTML file before changing anything.** This project is small enough that understanding the full file is practical and important.
-2. **Keep it single-file by default.** Do not split HTML/CSS/JS into separate files unless the user specifically requests it.
+2. **Keep the existing page boundaries.** Do not split embedded CSS/JavaScript into frameworks or additional support files unless the user specifically requests it. The approved pages are `index.html`, `new-quote.html`, and `projection.html`.
 3. **Prefer minimal edits over rewrites.** Preserve working behavior and patch the actual logic that needs to change.
 4. **Do not do speculative cleanup.** Avoid reorganizing large sections just because it seems cleaner.
 5. **Protect existing quote behavior.** A small UI tweak can easily break premium logic, rider logic, or warning logic.
@@ -26,15 +26,12 @@ The main goal is to keep the project **simple, stable, and easy to hand off**. D
 * Only show effective rate class when it differs from the selected rate class, such as preferred being calculated as non-tobacco because preferred is not available.
 * The desktop tab order is intentionally custom for fast entry. It starts with client name, spouse-on-policy checkbox, primary DOB, spouse DOB, then each enabled coverage line in product / coverage / rate class / anniversary order. Spouse DOB stays in the tab order even when spouse coverage is unchecked.
 
-## Project structure assumptions
+## Project structure
 
-* Main file is likely `index.html`.
-* The file likely contains:
-
-  * UI form controls for insureds, riders, products, health/rate classes, and options.
-  * Embedded CSS for layout and display.
-  * Embedded JavaScript for quote calculations, validations, warnings, and premium summaries.
-* Product/rate logic may be handled by in-file tables, objects, or arrays.
+* `index.html` is the end-of-term quote page and the source of truth for end-of-term inputs, rate tables, quote calculations, validations, saved drafts, and projection-data generation.
+* `new-quote.html` is the separate new-business quote page.
+* `projection.html` is the full-page year-by-year presentation opened from `index.html`. It reads a projection snapshot from `sessionStorage`; it is not a standalone quote calculator.
+* Each HTML page keeps its own CSS and JavaScript embedded. Preserve this simple structure unless the user requests a broader redesign.
 
 ## Business logic notes gathered from prior work
 
@@ -179,8 +176,37 @@ For subsequent C4 quotes:
 * Rate banding uses the combined eligible policy coverage across primary and spouse lines, consistent with original C4 banding. Preferred-class eligibility under $150,000 is still evaluated separately for each insured.
 * The UI should keep this option compact and avoid a large redesign.
 * The line should show a month/year note like `Level until Jun 2031` when the rate has a level period.
-* The initial implementation should only quote the current subsequent premium. Do not project future-year premiums from the workbook unless the user explicitly asks for that later.
+* The main quote line should only show the current subsequent premium. Future-year C4 values belong on the dedicated year-by-year projection page.
 * Waiver of premium is not currently available for subsequent C4 rates. If waiver is selected and a C4 line is set to subsequent rates, block that line's quote and show a clear warning instead of silently quoting an incomplete premium.
+
+### Year-by-year projection
+
+The `Year-by-year breakdown` button on the end-of-term page opens `projection.html` in a normal full-page browser tab. Projection columns use `Primary` and `Spouse`, never client names. Rows represent each product's anniversary year and continue through the year the insured turns 100.
+
+Projection behavior:
+
+* Each enabled base plan or rider gets its own coverage and selected-mode premium columns. A combined premium total appears at the right when multiple lines are present.
+* A line does not show years before its entered anniversary date.
+* Unsupported product families remain visible with `Rate unavailable`; unavailable values create a clearly marked partial total instead of silently contributing zero.
+* Age 99 is the final in-force premium year. The year the insured turns 100 is shown as `Expired`.
+* Waiver premium is removed at age 60. When a post-level-period waiver calculation is intentionally unavailable, the projection marks that line and total as partial.
+
+For original C4 projections, coverage and premium remain level for the product's named 10-, 15-, 20-, or 30-year term and then use the shared C4 subsequent table. For a line entered with a subsequent anniversary, projection begins at that anniversary and does not recreate earlier years. Subsequent rates use their table-defined level duration through age 69 and change annually beginning at age 70.
+
+An eligible C4 line shows `Convert to DT100` beside its plan name when insurance age at the first subsequent anniversary is at least 70. Conversion is independent for each line. The first conversion year keeps the same coverage and premium; later years keep that modal premium level and calculate decreasing coverage from the embedded C4 DT100 face-amount factors using basic annual premium before the $75 policy fee.
+
+### Custom Exchange projection and ART conversion
+
+Custom Exchange uses its original anniversary as policy year 1 and issue insurance age. The embedded death-benefit schedule currently supports issue ages 37 through 70.
+
+* Policy years 1 through 10 keep the original face amount and level base premium.
+* Policy year 11 begins the automatic decreasing death benefit using the issue-age column from the Custom Exchange table.
+* The base premium and applicable policy fee remain level on the normal decreasing-term path.
+* A supported Custom Exchange line shows `Convert to ART` beside its plan name. ART conversion begins in policy year 11.
+* On ART, the original face amount remains level and premium changes annually using attained insurance age through age 99.
+* ART uses the embedded scheduled annual rate table: `PP`/`P` use the Preferred group, `N` uses Select/NTU, and `T` uses TU. Existing per-insured preferred eligibility still applies.
+* ART rate bands use combined eligible policy coverage. Existing table-rating factors and billing-mode factors apply. The $75 annual fee applies only when the converted line is the primary base policy.
+* Waiver is not included after ART conversion; when it would otherwise still be active, the projection uses the existing omitted-waiver/partial-total indicator.
 
 ### C4 increasing benefit rider
 
@@ -269,7 +295,7 @@ After any meaningful quote-logic change, verify at least these cases:
 
 ## What not to do
 
-* Do not split the app into multiple files unless asked.
+* Do not create additional pages or split embedded CSS/JavaScript into support files unless asked.
 * Do not rewrite the UI framework.
 * Do not rename large sets of variables without a strong reason.
 * Do not change wording or layout broadly unless the user requests it.
@@ -280,7 +306,7 @@ After any meaningful quote-logic change, verify at least these cases:
 When first opening this project:
 
 1. Read `agents.md`.
-2. Read the full HTML file.
+2. Read all of `index.html` and the full additional HTML page involved in the requested change.
 3. Summarize the app's structure and quote flow in plain English.
 4. Identify where these likely live in code:
 

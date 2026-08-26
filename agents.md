@@ -179,6 +179,21 @@ For subsequent C4 quotes:
 * The main quote line should only show the current subsequent premium. Future-year C4 values belong on the dedicated year-by-year projection page.
 * Waiver of premium is not currently available for subsequent C4 rates. If waiver is selected and a C4 line is set to subsequent rates, block that line's quote and show a clear warning instead of silently quoting an incomplete premium.
 
+### TermNow and Custom Advantage (C6) subsequent rates
+
+TermNow and Custom Advantage use scheduled subsequent rates from the PLA-165 rate books. Guaranteed maximum rates are intentionally excluded from the app and must not be quoted or displayed.
+
+* Supported initial terms are 10, 15, 20, 25, 30, and 35 years. The app labels Custom Advantage as `C6` and TermNow as `T.Now`.
+* After the initial level term, subsequent rates are level in table-defined blocks before age 70 and change annually beginning at age 70.
+* The normal scheduled-rate path expires at age 95.
+* The 2018 Version 1 and May 2021 Version 2 scheduled subsequent tables match through age 70 and differ at ages 71 through 94. Custom Advantage initial rates match between books; TermNow initial rates differ and both versions are embedded.
+* Version selection is stored per line. For an original-rate line, an original anniversary before July 1, 2015 defaults to Version 1; July 1, 2015 or later defaults to Version 2. This is only a best-guess default. Clicking the version button marks the selection as manual and prevents later automatic overrides. A subsequent-only entry has no original anniversary available, so it retains its existing/default selection until manually changed.
+* On the main quote page, the compact heading button appears only when changing versions changes that line's current calculated quote. This includes affected original TermNow cases and subsequent TermNow/C6 cases at ages where the scheduled rates differ.
+* On the projection page, the compact heading button appears only when at least one displayed anniversary row differs between versions. It starts with the version selected on the main quote page and recalculates only that line. Do not duplicate V1/V2 product names in the main product dropdown.
+* Eligible TermNow and C6 lines can independently convert to DT100 when insurance age at the first subsequent anniversary is at least 70. The first conversion year retains coverage and premium; later coverage uses the separate PLA-165 DT100 face-amount factors and the conversion premium remains level through age 99. The year the insured turns 100 is `Expired`.
+* The PLA-165 DT100 factors are shared by both product families and both rate-book versions, but they are not the same factors as the C4 DT100 table.
+* Waiver is not calculated on the subsequent or DT100 path. Existing omitted-waiver/partial-total behavior applies when waiver would otherwise still be active.
+
 ### Year-by-year projection
 
 The `Year-by-year breakdown` button on the end-of-term page opens `projection.html` in a normal full-page browser tab. Projection columns use `Primary` and `Spouse`, never client names. Rows represent each product's anniversary year and continue through the year the insured turns 100.

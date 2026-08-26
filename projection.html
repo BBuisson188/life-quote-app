@@ -108,6 +108,7 @@
   }
   button.dt-toggle:hover { background:#eaf3ff; }
   button.dt-toggle.active { border-color:#166534; background:#eaf8ef; color:#166534; }
+  button.version-toggle.active { border-color:#7c3aed; background:#f3e8ff; color:#6d28d9; }
   .coverage { color:#334155; }
   .premium { font-weight:800; }
   .premium.unavailable { color:#9a5b0a; }
@@ -180,9 +181,10 @@
     <ul id="lineNotes"></ul>
     <div>C4 coverage is held level. Original C4 rates remain level for the product's named initial term, then move to the shared C4 subsequent table. Subsequent blocks are held for the number of years in that table; age 99 is the final premium year and the policy is shown as expired in the year the insured turns 100.</div>
     <div>For an eligible DT100 conversion, the first subsequent year's premium and coverage stay unchanged. Beginning the following year, that premium remains level while coverage is calculated from the C4 DT100 face-amount table using basic annual premium before the $75 policy fee.</div>
+    <div>TermNow and Custom Advantage (C6) use scheduled subsequent rates only. Their normal coverage expires at age 95. Use the compact V1/V2 button beside each product heading to match the policy; eligible lines can independently convert to DT100 through age 100.</div>
     <div>Custom Exchange coverage remains level for policy years 1–10, then automatically decreases using the policy's issue-age column from the Custom Exchange death-benefit table. Its base premium and policy fee remain level.</div>
     <div>When Custom Exchange is converted to ART at policy year 11, its original coverage remains level and its premium changes annually using attained-age ART rates. The current effective class, combined coverage band, table rating, billing mode, and applicable $75 base-policy fee are used.</div>
-    <div>Other product families and riders remain visible but are marked <strong>Rate unavailable</strong> until their projection rules are added. Current combined coverage bands and table ratings are held constant throughout this version.</div>
+    <div>Other unsupported product families and riders remain visible but are marked <strong>Rate unavailable</strong> until their projection rules are added. Current combined coverage bands and table ratings are held constant throughout this version.</div>
     <div><strong>*</strong> Partial total: excludes an unavailable premium. <strong>†</strong> Waiver is omitted because its subsequent-period calculation is intentionally not projected. During an original level period, available waiver premium is removed beginning with age 60.</div>
   </section>
 
@@ -196,6 +198,7 @@
 const PROJECTION_STORAGE_KEY = 'life-quote-year-projection';
 const dt100Selections = new Set();
 const artSelections = new Set();
+const version2Selections = new Set();
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -240,7 +243,7 @@ function headerHtml(data) {
       ${groups.map(group => `<th colspan="${group.entries.length * 2}" class="group-head">${escapeHtml(group.name)}</th>`).join('')}
       <th rowspan="3" class="total-head">Total ${escapeHtml(data.billingMode.toLowerCase())}</th>
     </tr>
-    <tr>${data.entries.map((entry, index) => `<th colspan="2" class="line-head"><div class="line-head-wrap"><div class="line-head-copy">${escapeHtml(entry.label)}<small>${escapeHtml(entry.product)}</small></div>${entry.dt100Eligible ? `<button class="dt-toggle" type="button" data-dt-index="${index}" aria-pressed="false" title="Convert this line to decreasing term through age 100">Convert to DT100</button>` : entry.artEligible ? `<button class="dt-toggle" type="button" data-art-index="${index}" aria-pressed="false" title="Convert this Custom Exchange line to annual renewable term">Convert to ART</button>` : ''}</div></th>`).join('')}</tr>
+    <tr>${data.entries.map((entry, index) => `<th colspan="2" class="line-head"><div class="line-head-wrap"><div class="line-head-copy">${escapeHtml(entry.label)}<small>${escapeHtml(entry.product)}</small></div>${entry.versionedRateEligible ? `<button class="dt-toggle version-toggle ${version2Selections.has(index) ? 'active' : ''}" type="button" data-version-index="${index}" aria-pressed="${version2Selections.has(index) ? 'true' : 'false'}" title="Switch this product between Version 1 and Version 2 rates">Using ${version2Selections.has(index) ? 'V2' : 'V1'}</button>` : ''}${entry.dt100Eligible ? `<button class="dt-toggle" type="button" data-dt-index="${index}" aria-pressed="false" title="Convert this line to decreasing term through age 100">Convert to DT100</button>` : entry.artEligible ? `<button class="dt-toggle" type="button" data-art-index="${index}" aria-pressed="false" title="Convert this Custom Exchange line to annual renewable term">Convert to ART</button>` : ''}</div></th>`).join('')}</tr>
     <tr>${data.entries.map(() => `<th>Coverage</th><th>${escapeHtml(data.billingMode)} premium</th>`).join('')}</tr>
   `;
 }
@@ -249,9 +252,12 @@ function rowsHtml(data) {
   const rows = [];
   for (let year = data.range.startYear; year <= data.range.endYear; year++) {
     const cells = data.entries.map((entry, index) => {
+      const useV2 = version2Selections.has(index);
+      const versionedCells = useV2 && entry.version2Cells ? entry.version2Cells : entry.version1Cells || entry.cells;
+      const versionedDtCells = useV2 && entry.version2Dt100Cells ? entry.version2Dt100Cells : entry.version1Dt100Cells || entry.dt100Cells;
       const source = artSelections.has(index) && entry.artCells
         ? entry.artCells
-        : dt100Selections.has(index) && entry.dt100Cells ? entry.dt100Cells : entry.cells;
+        : dt100Selections.has(index) && versionedDtCells ? versionedDtCells : versionedCells;
       return source[String(year)] || { coverage:'—', premium:'Rate unavailable', partial:true };
     });
     const numericCells = cells.filter(cell => Number.isFinite(cell.premiumValue));
@@ -287,7 +293,7 @@ function bindDt100Buttons(data) {
         button.setAttribute('aria-pressed', 'false');
       } else {
         dt100Selections.add(index);
-        button.textContent = 'Use C4 rates';
+        button.textContent = data.entries[index]?.versionedRateEligible ? 'Use scheduled rates' : 'Use C4 rates';
         button.classList.add('active');
         button.setAttribute('aria-pressed', 'true');
       }
@@ -311,6 +317,23 @@ function bindDt100Buttons(data) {
       renderProjectionRows(data);
     };
   });
+  document.querySelectorAll('[data-version-index]').forEach(button => {
+    button.onclick = () => {
+      const index = Number(button.dataset.versionIndex);
+      if (version2Selections.has(index)) {
+        version2Selections.delete(index);
+        button.textContent = 'Using V1';
+        button.classList.remove('active');
+        button.setAttribute('aria-pressed', 'false');
+      } else {
+        version2Selections.add(index);
+        button.textContent = 'Using V2';
+        button.classList.add('active');
+        button.setAttribute('aria-pressed', 'true');
+      }
+      renderProjectionRows(data);
+    };
+  });
 }
 
 function renderProjection() {
@@ -326,12 +349,16 @@ function renderProjection() {
   document.title = data.title;
   document.getElementById('pageTitle').textContent = data.title;
   document.getElementById('pageSubtitle').textContent = `${data.billingMode} premiums by each product's anniversary year`;
+  version2Selections.clear();
+  data.entries.forEach((entry, index) => {
+    if (entry.versionedRateEligible && entry.selectedRateVersion === 'v2') version2Selections.add(index);
+  });
   document.getElementById('projectionHead').innerHTML = headerHtml(data);
   renderProjectionRows(data);
   bindDt100Buttons(data);
   document.querySelector('table').style.setProperty('--table-min-width', data.simple ? '620px' : `${Math.max(820, 230 + data.entries.length * 300)}px`);
   document.getElementById('lineNotes').innerHTML = data.entries.map(entry => `
-    <li><strong>${escapeHtml(entry.group)} — ${escapeHtml(entry.label)} (${escapeHtml(entry.product)}):</strong> ${escapeHtml(entry.basis)} ${escapeHtml(entry.date)}.${entry.dt100Eligible ? ` DT100 is available beginning at insurance age ${escapeHtml(entry.dt100ConversionAge)} on ${escapeHtml(entry.dt100ConversionDate)}.` : ''}${entry.artEligible ? ` ART is available beginning at insurance age ${escapeHtml(entry.artConversionAge)} on ${escapeHtml(entry.artConversionDate)}.` : ''}</li>
+    <li><strong>${escapeHtml(entry.group)} — ${escapeHtml(entry.label)} (${escapeHtml(entry.product)}):</strong> ${escapeHtml(entry.basis)} ${escapeHtml(entry.date)}.${entry.versionedRateEligible ? ` ${entry.selectedRateVersion === 'v2' ? 'Version 2' : 'Version 1'} rates are shown initially; use the heading button to compare the other version.` : ''}${entry.dt100Eligible ? ` DT100 is available beginning at insurance age ${escapeHtml(entry.dt100ConversionAge)} on ${escapeHtml(entry.dt100ConversionDate)}.` : ''}${entry.artEligible ? ` ART is available beginning at insurance age ${escapeHtml(entry.artConversionAge)} on ${escapeHtml(entry.artConversionDate)}.` : ''}</li>
   `).join('');
 }
 

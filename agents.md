@@ -200,6 +200,7 @@ The `Year-by-year breakdown` button on the end-of-term page opens `projection.ht
 
 Projection behavior:
 
+* The breakdown button stays hidden until at least one enabled, supported product line has a valid birth date, anniversary date, coverage amount, and calculable premium. Other incomplete or unsupported lines do not hide it once one eligible line is ready.
 * Each enabled base plan or rider gets its own coverage and selected-mode premium columns. A combined premium total appears at the right when multiple lines are present.
 * A line does not show years before its entered anniversary date.
 * Unsupported product families remain visible with `Rate unavailable`; unavailable values create a clearly marked partial total instead of silently contributing zero.
@@ -281,6 +282,8 @@ The compact document icon in the sticky premium bar copies a plain-text summary 
 * The final line identifies the selected billing mode, such as `Total monthly premium: $85.21`.
 * Export is blocked when any enabled line is incomplete, unavailable, unsupported, missing required waiver premium, or otherwise not fully quotable. A partial or zero total must not be copied.
 * Successful clipboard copying briefly changes the icon to a checkmark. If direct clipboard access is unavailable, the app falls back to a manual copy prompt.
+* When waiver premium is actually included on an end-of-term line, `(WP)` appears immediately after that product. The child rider is also marked `(WP)` when its waiver premium is included.
+* The new-business page has the same compact CRM-copy icon. It produces one line per insured with product, term, coverage, class or class range, and that insured's separate application premium; and marks products and child riders with `(WP)` when waiver is selected. It does not include a household total, client names, ages, sex, tobacco status, or health wording.
 
 ## Change strategy
 

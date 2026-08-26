@@ -487,7 +487,7 @@
         <button class="crm-copy-btn" id="crmCopyBtn" type="button" aria-label="Copy text summary for CRM" title="Copy text summary for CRM">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"></path><path d="M14 3v5h5"></path><path d="M10 12h5M10 16h5"></path></svg>
         </button>
-        <button class="projection-btn" id="yearByYearBtn" type="button">Year-by-year breakdown</button>
+        <button class="projection-btn hidden" id="yearByYearBtn" type="button">Year-by-year breakdown</button>
       </div>
     </div>
   </section>
@@ -620,7 +620,7 @@
 
 <script>
 const APP = Object.freeze({
-  VERSION: '1.44',
+  VERSION: '1.46',
   VERSION_DATE: '2026-08-26',
   TITLE_BASE: 'Life Quote Workflow'
 });
@@ -637,6 +637,7 @@ const C4_PRODUCTS = new Set(['C4-10','C4-15','C4-20','C4-30']);
 const TNOW_PRODUCTS = new Set(['T.Now-10','T.Now-15','T.Now-20','T.Now-25','T.Now-30','T.Now-35']);
 const C6_PRODUCTS = new Set(['C6-10','C6-15','C6-20','C6-25','C6-30','C6-35']);
 const VERSIONED_TERM_PRODUCTS = new Set([...TNOW_PRODUCTS, ...C6_PRODUCTS]);
+const PROJECTION_PRODUCTS = new Set([...C4_PRODUCTS, ...VERSIONED_TERM_PRODUCTS, 'Cust Exch']);
 const IBR_PRODUCTS = new Set(['C4-IBR','IBR']);
 const RATE_BASIS_OPTIONS = ['original','subsequent'];
 const RATE_BASIS_LABELS = { original: 'Orig', subsequent: 'Subseq' };
@@ -2119,9 +2120,10 @@ function buildCrmSummaryText(calc) {
   const lines = calc.lines.map(item => {
     const role = item.side === 'primary' ? 'Primary' : 'Spouse';
     const label = sideCounts[item.side] > 1 ? `${role} ${item.line.type}` : role;
-    return `${label}: ${item.line.product} - ${formatCrmCoverage(item.line.amount)}`;
+    const waiver = item.calc.modalWp > 0 ? ' (WP)' : '';
+    return `${label}: ${item.line.product}${waiver} - ${formatCrmCoverage(item.line.amount)}`;
   });
-  if (state.includeChild === 'Yes') lines.push(`Child Rider: ${formatCrmCoverage(state.childCoverage)}`);
+  if (state.includeChild === 'Yes') lines.push(`Child Rider${calc.childWp > 0 ? ' (WP)' : ''}: ${formatCrmCoverage(state.childCoverage)}`);
   lines.push(`Total ${state.billingMode.toLowerCase()} premium: ${money(calc.totalModal)}`);
   return lines.join('\n');
 }
@@ -3199,8 +3201,32 @@ function renderDiagnostics() {
   `).join('');
 }
 
+function hasReadyProjectionLine(calc) {
+  return allLines().some(({ side, line, index }) => {
+    if (!line.enabled || !PROJECTION_PRODUCTS.has(line.product)) return false;
+
+    const amount = numericAmount(line.amount);
+    const anniversary = parseDate(line.anniversary);
+    const dob = parseDate(side === 'primary' ? state.primaryDob : state.spouseDob);
+    if (!(amount > 0) || !anniversary || !dob) return false;
+
+    const lineCalc = calc.lines.find(item => item.side === side && item.index === index)?.calc;
+    if (!lineCalc || lineCalc.unsupported || lineCalc.wpUnavailable || lineCalc.ibrIssue) return false;
+    if (!Number.isFinite(lineCalc.age) || !Number.isFinite(lineCalc.baseRate) || !(lineCalc.modalTotal > 0)) return false;
+    if (state.includeWaiver === 'Yes' && Number.isFinite(lineCalc.wpAge) && lineCalc.wpAge < 60 && !Number.isFinite(lineCalc.wpRate)) return false;
+
+    if (line.product === 'Cust Exch') {
+      const issueAge = insuranceAgeAtDate(dob, anniversary);
+      if (!Number.isFinite(issueAge) || issueAge < 37 || issueAge > 70) return false;
+    }
+    return true;
+  });
+}
+
 function updateSummary() {
   const calc = calculations();
+  const projectionButton = document.getElementById('yearByYearBtn');
+  if (projectionButton) projectionButton.classList.toggle('hidden', !hasReadyProjectionLine(calc));
   document.getElementById('kpiPremium').textContent = money(calc.totalModal || 0);
   const premiumModeEl = document.getElementById('kpiPremiumMode');
   if (premiumModeEl) premiumModeEl.textContent = state.billingMode;

@@ -65,8 +65,26 @@
   .premium-label { color: rgba(255, 255, 255, .68); }
   .premium-value { font-size: 31px; line-height: 1; font-weight: 850; letter-spacing: -.04em; }
   .premium-mode { color: rgba(255, 255, 255, .74); font-size: 13px; font-weight: 750; }
+  .premium-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
   .premium-note { max-width: 350px; color: #dbeafe; font-size: 12px; line-height: 1.4; text-align: right; }
   .premium-note.has-warning { color: #fde68a; font-weight: 800; }
+  .crm-copy-btn {
+    flex: 0 0 auto;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, .34);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, .14);
+  }
+  .crm-copy-btn:hover { background: rgba(255, 255, 255, .22); }
+  .crm-copy-btn:focus-visible { outline: 2px solid #bfdbfe; outline-offset: 2px; }
+  .crm-copy-btn.copied { color: #dcfce7; border-color: #86efac; background: rgba(22, 101, 52, .72); }
+  .crm-copy-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 
   .intro {
     display: flex;
@@ -383,6 +401,7 @@
     .premium-inner, .intro { align-items: flex-start; }
     .premium-inner { min-height: 0; }
     .premium-inner { flex-wrap: wrap; }
+    .premium-actions { width: 100%; }
     .premium-note { flex-basis: 100%; max-width: none; text-align: left; }
     .premium-note:not(.has-warning) { display: none; }
     .intro { flex-direction: column; }
@@ -423,7 +442,12 @@
         <span class="premium-value" id="householdPremium">Pending</span>
         <span class="premium-mode" id="premiumModeLabel">Monthly</span>
       </div>
-      <div class="premium-note" id="topQuoteMessage" aria-live="polite">Uses PLA-200 initial rates. Underwriting determines the final rate class.</div>
+      <div class="premium-actions">
+        <div class="premium-note" id="topQuoteMessage" aria-live="polite">Uses PLA-200 initial rates. Underwriting determines the final rate class.</div>
+        <button class="crm-copy-btn" id="crmCopyBtn" type="button" aria-label="Copy text summary for CRM" title="Copy text summary for CRM">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"></path><path d="M14 3v5h5"></path><path d="M10 12h5M10 16h5"></path></svg>
+        </button>
+      </div>
     </div>
   </section>
 
@@ -906,6 +930,68 @@
     return insuredState[insuredKey].lines.reduce((total, line) => total + numericCoverage(line.amount), 0);
   }
 
+  function formatCrmCoverage(amountInDollars) {
+    return `${(amountInDollars / 1000).toLocaleString(undefined, { maximumFractionDigits: 2 })}K`;
+  }
+
+  function buildCrmSummaryText(primaryQuote, spouseQuote) {
+    const lines = [];
+    const addInsured = (label, state, quote) => {
+      const products = [];
+      state.lines.forEach(line => {
+        const amount = numericCoverage(line.amount);
+        if (!(amount > 0)) return;
+        const product = line.product || 'PowerTerm';
+        const term = line.term || '20';
+        products.push(`${product}${state.waiver ? ' (WP)' : ''} ${term} YR - ${formatCrmCoverage(amount)}`);
+      });
+      if (state.child) {
+        const childAmount = numericAmount(state.childAmount || 1000);
+        products.push(`Child Rider${state.waiver ? ' (WP)' : ''} - ${formatCrmCoverage(childAmount)}`);
+      }
+      lines.push(`${label}: ${products.join('; ')} - ${healthPresentation(state).pill} - ${formatQuoteRange(quote)}`);
+    };
+    addInsured('Primary', insuredState.primary, primaryQuote);
+    if (spouseIncluded) addInsured('Spouse', insuredState.spouse, spouseQuote);
+    return lines.join('\n');
+  }
+
+  function showCrmCopiedState() {
+    const button = document.getElementById('crmCopyBtn');
+    const original = button.innerHTML;
+    button.classList.add('copied');
+    button.setAttribute('aria-label', 'CRM summary copied');
+    button.title = 'CRM summary copied';
+    button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"></path></svg>';
+    window.setTimeout(() => {
+      button.classList.remove('copied');
+      button.setAttribute('aria-label', 'Copy text summary for CRM');
+      button.title = 'Copy text summary for CRM';
+      button.innerHTML = original;
+    }, 1600);
+  }
+
+  async function copyCrmSummary() {
+    const primaryQuote = quoteInsured(insuredState.primary);
+    const spouseQuote = spouseIncluded ? quoteInsured(insuredState.spouse) : null;
+    if (primaryQuote.error || spouseQuote?.error) {
+      const issue = primaryQuote.error ? `Primary: ${primaryQuote.error}` : `Spouse: ${spouseQuote.error}`;
+      window.alert(`CRM summary was not copied. ${issue}`);
+      return;
+    }
+    const summary = buildCrmSummaryText(primaryQuote, spouseQuote);
+    try {
+      if (navigator.clipboard?.writeText && window.isSecureContext) {
+        await navigator.clipboard.writeText(summary);
+        showCrmCopiedState();
+        return;
+      }
+    } catch {
+      // Use the manual copy prompt below when direct clipboard access is unavailable.
+    }
+    window.prompt('Copy this CRM summary:', summary);
+  }
+
   function updateSnapshot() {
     const primaryQuote = quoteInsured(insuredState.primary);
     const spouseQuote = spouseIncluded ? quoteInsured(insuredState.spouse) : null;
@@ -1083,6 +1169,7 @@
   });
   document.getElementById('saveQuote').addEventListener('click', saveCurrentQuote);
   document.getElementById('newQuote').addEventListener('click', clearCurrentQuote);
+  document.getElementById('crmCopyBtn').addEventListener('click', copyCrmSummary);
   const dialog = document.getElementById('classInfoDialog');
   dialog.querySelector('.dialog-close').addEventListener('click', () => dialog.close());
   dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });

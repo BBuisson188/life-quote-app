@@ -128,6 +128,15 @@
 }
 .projection-btn:hover { background:rgba(255,255,255,.22); }
 .projection-btn:focus-visible { outline:2px solid #bfdbfe; outline-offset:2px; }
+.crm-copy-btn {
+  width:38px; height:38px; padding:0; display:inline-flex; align-items:center; justify-content:center;
+  border:1px solid rgba(255,255,255,.34); border-radius:12px;
+  background:rgba(255,255,255,.14); color:#fff; cursor:pointer;
+}
+.crm-copy-btn:hover { background:rgba(255,255,255,.22); }
+.crm-copy-btn:focus-visible { outline:2px solid #bfdbfe; outline-offset:2px; }
+.crm-copy-btn.copied { color:#dcfce7; border-color:#86efac; background:rgba(22,101,52,.72); }
+.crm-copy-btn svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
 .section-kicker {
   display: inline-flex;
   align-items: center;
@@ -297,6 +306,13 @@
     border-radius:999px; font-size:11px; font-weight:800; cursor:pointer;
   }
   .version-mini.active { background:#1d4ed8; border-color:#1d4ed8; color:white; }
+  .copy-line-btn {
+    width:28px; height:28px; padding:0; display:inline-flex; align-items:center; justify-content:center;
+    border:1px solid #bfdbfe; border-radius:9px; background:#f4f8ff; color:#315780; cursor:pointer;
+  }
+  .copy-line-btn:hover { background:#e8f2ff; }
+  .copy-line-btn:focus-visible { outline:2px solid #60a5fa; outline-offset:2px; }
+  .copy-line-btn svg { width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
   .row-sub { color: var(--muted); font-size:12px; margin-top:2px; }
   .row-grid { display:grid; grid-template-columns: 1.15fr .9fr .9fr .95fr; gap:8px; }
   .row-grid.c4-ibr-grid { grid-template-columns: 1.15fr .9fr .9fr .95fr .65fr; }
@@ -375,6 +391,15 @@
   .ghost-btn:hover { background:#f8fbff; }
   .solid-btn { background:#1d4ed8; color:white; border-color:#1d4ed8; }
   .danger-btn { color: var(--red); border-color: #fecaca; background: #fff7f7; }
+  .icon-btn {
+    width:34px; height:34px; padding:0; display:inline-flex; align-items:center; justify-content:center;
+    border:1px solid #cdd9e7; border-radius:10px; background:white; color:#315780; cursor:pointer;
+  }
+  .icon-btn:hover { background:#f1f7ff; }
+  .icon-btn svg { width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
+  .icon-btn.delete { color:var(--red); border-color:#fecaca; background:#fff7f7; }
+  .icon-btn.delete:hover { background:#feecec; }
+  .icon-btn:focus-visible { outline:2px solid #60a5fa; outline-offset:2px; }
   .actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
   .rated-control { display:flex; align-items:center; gap:6px; width:auto; }
   .rated-control label { margin:0; font-size:10px; line-height:1; }
@@ -459,6 +484,9 @@
           <span class="sticky-premium-alert-icon">🛑</span>
           <span class="sticky-premium-alert-text" id="stickyValidationText">Needs attention</span>
         </div>
+        <button class="crm-copy-btn" id="crmCopyBtn" type="button" aria-label="Copy text summary for CRM" title="Copy text summary for CRM">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"></path><path d="M14 3v5h5"></path><path d="M10 12h5M10 16h5"></path></svg>
+        </button>
         <button class="projection-btn" id="yearByYearBtn" type="button">Year-by-year breakdown</button>
       </div>
     </div>
@@ -592,7 +620,7 @@
 
 <script>
 const APP = Object.freeze({
-  VERSION: '1.39',
+  VERSION: '1.44',
   VERSION_DATE: '2026-08-26',
   TITLE_BASE: 'Life Quote Workflow'
 });
@@ -601,6 +629,7 @@ const VERSION_DATE = APP.VERSION_DATE;
 const STORAGE_KEY = 'life-quote-history';
 const STORAGE_MIGRATION_KEY = 'life-quote-history-migrated-v1';
 const PROJECTION_STORAGE_KEY = 'life-quote-year-projection';
+const SHARE_LINK_TTL_MS = 24 * 60 * 60 * 1000;
 const RATE_CLASS_OPTIONS = ['PP','P','N','T'];
 const RATE_CLASS_LABELS = { PP: 'Preferred Plus', P: 'Preferred', N: 'Non-Tobacco', T: 'Tobacco' };
 const PRODUCT_OPTIONS = ['C4-10','C4-15','C4-20','C4-30','C4-IBR','Cust Exch','T.Now-10','T.Now-15','T.Now-20','T.Now-25','T.Now-30','T.Now-35','C6-10','C6-15','C6-20','C6-25','C6-30','C6-35','CST-95','CST-Banded','Eagle-20','IBR','Other'];
@@ -2049,6 +2078,90 @@ function calculations() {
   return out;
 }
 
+function crmExportIssue(calc) {
+  if (!state.primaryDob.trim()) return 'Enter the primary birth date first.';
+  if (state.includeSpouse === 'Yes' && !state.spouseDob.trim()) return 'Enter the spouse birth date first.';
+  const enabledLines = allLines().filter(({ line }) => line.enabled);
+  if (!enabledLines.length) return 'Complete at least one coverage line first.';
+
+  for (const { side, line, index } of enabledLines) {
+    const label = `${side === 'primary' ? 'Primary' : 'Spouse'} ${line.type}`;
+    const lineCalc = calc.lines.find(item => item.side === side && item.index === index)?.calc;
+    if (!line.product) return `${label} needs a product.`;
+    if (!(numericAmount(line.amount) > 0)) return `${label} needs a valid coverage amount.`;
+    if (!parseDate(line.anniversary)) return `${label} needs a valid anniversary date.`;
+    if (!lineCalc || lineCalc.age === null) return `${label} could not calculate an insurance age.`;
+    if (lineCalc.unsupported || lineCalc.wpUnavailable || lineCalc.ibrIssue) return `${label} is not fully quotable.`;
+    if (!Number.isFinite(lineCalc.baseRate) || !(lineCalc.modalTotal > 0)) return `${label} does not have an available premium.`;
+    if (state.includeWaiver === 'Yes' && Number.isFinite(lineCalc.wpAge) && lineCalc.wpAge < 60 && !Number.isFinite(lineCalc.wpRate)) {
+      return `${label} does not have an available waiver premium.`;
+    }
+  }
+
+  if (state.includeChild === 'Yes') {
+    if (!(numericAmount(state.childCoverage) > 0) || !(calc.childModal > 0)) return 'The child rider needs a valid coverage amount.';
+  }
+  if (!(calc.totalModal > 0)) return 'The policy does not have a complete premium.';
+  return '';
+}
+
+function formatCrmCoverage(amount) {
+  const value = numericAmount(amount);
+  if (!Number.isFinite(value)) return '—';
+  return `${value.toLocaleString(undefined, { maximumFractionDigits:2 })}K`;
+}
+
+function buildCrmSummaryText(calc) {
+  const sideCounts = calc.lines.reduce((counts, item) => {
+    counts[item.side] = (counts[item.side] || 0) + 1;
+    return counts;
+  }, {});
+  const lines = calc.lines.map(item => {
+    const role = item.side === 'primary' ? 'Primary' : 'Spouse';
+    const label = sideCounts[item.side] > 1 ? `${role} ${item.line.type}` : role;
+    return `${label}: ${item.line.product} - ${formatCrmCoverage(item.line.amount)}`;
+  });
+  if (state.includeChild === 'Yes') lines.push(`Child Rider: ${formatCrmCoverage(state.childCoverage)}`);
+  lines.push(`Total ${state.billingMode.toLowerCase()} premium: ${money(calc.totalModal)}`);
+  return lines.join('\n');
+}
+
+function showCrmCopiedState() {
+  const button = document.getElementById('crmCopyBtn');
+  if (!button) return;
+  const original = button.innerHTML;
+  button.classList.add('copied');
+  button.setAttribute('aria-label', 'CRM summary copied');
+  button.title = 'CRM summary copied';
+  button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"></path></svg>';
+  window.setTimeout(() => {
+    button.classList.remove('copied');
+    button.setAttribute('aria-label', 'Copy text summary for CRM');
+    button.title = 'Copy text summary for CRM';
+    button.innerHTML = original;
+  }, 1600);
+}
+
+async function copyCrmSummary() {
+  const calc = calculations();
+  const issue = crmExportIssue(calc);
+  if (issue) {
+    window.alert(`CRM summary was not copied. ${issue}`);
+    return;
+  }
+  const summary = buildCrmSummaryText(calc);
+  try {
+    if (navigator.clipboard?.writeText && window.isSecureContext) {
+      await navigator.clipboard.writeText(summary);
+      showCrmCopiedState();
+      return;
+    }
+  } catch {
+    // Use the manual copy prompt below when direct clipboard access is unavailable.
+  }
+  window.prompt('Copy this CRM summary:', summary);
+}
+
 function versionedQuoteCalculationsDiffer(version1, version2) {
   const fields = ['baseRate', 'annualCoverage', 'annualWp', 'modalTotal'];
   return fields.some(field => {
@@ -2639,6 +2752,50 @@ function openYearByYearBreakdown() {
   }
 }
 
+function primaryLineReadyToCopy(index) {
+  const line = state.primary[index];
+  if (!line?.enabled || !line.product) return false;
+  if (!(numericAmount(line.amount) > 0) || !parseDate(line.anniversary)) return false;
+  const rateClass = String(line.rateClass || '').toUpperCase();
+  return getAllowedRateClasses(line.product).includes(rateClass);
+}
+
+function fillSpouseLineFromPrimary(index) {
+  if (!primaryLineReadyToCopy(index)) return false;
+  const source = state.primary[index];
+  const target = state.spouse[index];
+  if (!target?.enabled) return false;
+  let changed = false;
+
+  if (target.product === 'Cust Exch') {
+    target.product = source.product;
+    target.rateBasis = source.rateBasis || 'original';
+    target.rateVersion = source.rateVersion === 'v2' ? 'v2' : 'v1';
+    target.rateVersionManual = source.rateVersionManual === true;
+    changed = true;
+  }
+  if (!(numericAmount(target.amount) > 0)) {
+    target.amount = source.amount;
+    changed = true;
+  }
+  if (String(target.rateClass || '').toUpperCase() === 'N') {
+    const sourceClass = String(source.rateClass || '').toUpperCase();
+    if (getAllowedRateClasses(target.product).includes(sourceClass)) {
+      target.rateClass = sourceClass;
+      changed = true;
+    }
+  }
+  if (!parseDate(target.anniversary)) {
+    target.anniversary = source.anniversary;
+    changed = true;
+  }
+  return changed;
+}
+
+function copyPrimaryLineIntoSpouse(index) {
+  if (fillSpouseLineFromPrimary(index)) rerender();
+}
+
 function renderCoverageSection(containerId, side) {
   const container = document.getElementById(containerId);
   const lines = state[side];
@@ -2672,6 +2829,7 @@ function renderCoverageSection(containerId, side) {
       : null;
     const showVersionButton = versionedQuoteCalculationsDiffer(version1Calc, version2Calc);
     const usingVersion2 = line.rateVersion === 'v2';
+    const showPrimaryCopyButton = side === 'spouse' && primaryLineReadyToCopy(index);
     const ageNote = calc.age !== null && calc.age !== undefined
       ? c4IbrLine
         ? `Issue age ${calc.age}${calc.ibrIncreaseCount ? ` - ${calc.ibrIncreaseCount} increase${calc.ibrIncreaseCount === 1 ? '' : 's'}` : ''}`
@@ -2684,6 +2842,9 @@ function renderCoverageSection(containerId, side) {
         <div>
           <div class="row-title-line">
             <div class="row-title">${line.type}</div>
+            ${showPrimaryCopyButton ? `<button class="copy-line-btn" type="button" data-action="copy-primary-line" data-index="${index}" aria-label="Fill blanks from Primary ${line.type}" title="Fill blanks from Primary ${line.type}">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5V3h6v2"></path><path d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"></path><path d="M12 9v8"></path><path d="m9 14 3 3 3-3"></path></svg>
+            </button>` : ''}
             ${showVersionButton ? `<button class="version-mini ${usingVersion2 ? 'active' : ''}" type="button" data-action="toggle-rate-version" data-side="${side}" data-index="${index}" aria-pressed="${usingVersion2 ? 'true' : 'false'}" title="Switch this line between Version 1 and Version 2 rates">Using ${usingVersion2 ? 'V2' : 'V1'}</button>` : ''}
           </div>
           <div class="row-sub">${side === 'primary' ? 'Primary insured' : 'Spouse insured'}</div>
@@ -3180,6 +3341,9 @@ function bindDynamicInputs() {
   document.querySelectorAll('[data-action="remove-line"]').forEach(btn => {
     btn.onclick = () => removeLine(btn.dataset.side, Number(btn.dataset.index));
   });
+  document.querySelectorAll('[data-action="copy-primary-line"]').forEach(btn => {
+    btn.onclick = () => copyPrimaryLineIntoSpouse(Number(btn.dataset.index));
+  });
   document.querySelectorAll('[data-action="toggle-rate-version"]').forEach(btn => {
     btn.onclick = () => {
       const line = state[btn.dataset.side][Number(btn.dataset.index)];
@@ -3286,6 +3450,165 @@ function savedQuotePayload(id = null) {
     primary: structuredClone(state.primary),
     spouse: structuredClone(state.spouse)
   };
+}
+
+function compactSharedLine(line) {
+  const compact = {};
+  Object.entries(line || {}).forEach(([key, value]) => {
+    if (key === 'type' || key === 'enabled') return;
+    if (value === '' || value === false || value === null || value === undefined) return;
+    if (key === 'manualRateMode' && value === 'basic') return;
+    if (key === 'rateBasis' && value === 'original') return;
+    if (key === 'rateVersion' && value === 'v1') return;
+    compact[key] = value;
+  });
+  return compact;
+}
+
+function expandSharedLine(compact, type = 'Base Plan') {
+  const line = makeLine(type);
+  Object.assign(line, compact && typeof compact === 'object' ? compact : {});
+  line.type = type;
+  line.enabled = true;
+  normalizeLineForLoad(line);
+  return line;
+}
+
+function compactSharedLines(lines) {
+  return COVERAGE_TYPES.map((type, index) => {
+    const line = lines?.[index];
+    return line?.enabled ? compactSharedLine(line) : null;
+  });
+}
+
+function expandSharedLines(compactLines) {
+  const lines = COVERAGE_TYPES.map(type => makeLine(type));
+  if (!Array.isArray(compactLines)) return lines;
+  compactLines.slice(0, COVERAGE_TYPES.length).forEach((compact, index) => {
+    if (compact && typeof compact === 'object') lines[index] = expandSharedLine(compact, COVERAGE_TYPES[index]);
+  });
+  lines[0].enabled = true;
+  return lines;
+}
+
+function sharedQuotePayload(item) {
+  return {
+    v: 2,
+    e: Date.now() + SHARE_LINK_TTL_MS,
+    b: item.billingMode || 'Monthly',
+    w: item.includeWaiver === 'Yes' ? 1 : 0,
+    s: item.includeSpouse === 'Yes' ? 1 : 0,
+    k: item.includeChild === 'Yes' ? 1 : 0,
+    c: item.includeChild === 'Yes' ? item.childCoverage || '' : null,
+    d: item.primaryDob || '',
+    p: compactSharedLines(item.primary),
+    h: item.includeSpouse === 'Yes' ? item.spouseDob || '' : '',
+    q: item.includeSpouse === 'Yes' ? compactSharedLines(item.spouse) : null
+  };
+}
+
+function bytesToBase64Url(bytes) {
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function base64UrlToBytes(value) {
+  const base64 = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = base64 + '='.repeat((4 - base64.length % 4) % 4);
+  const binary = atob(padded);
+  return Uint8Array.from(binary, char => char.charCodeAt(0));
+}
+
+async function encodeSharedQuote(payload) {
+  const bytes = new TextEncoder().encode(JSON.stringify(payload));
+  if (typeof CompressionStream === 'function') {
+    const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'));
+    return `g.${bytesToBase64Url(new Uint8Array(await new Response(stream).arrayBuffer()))}`;
+  }
+  return `j.${bytesToBase64Url(bytes)}`;
+}
+
+async function decodeSharedQuote(value) {
+  const separator = value.indexOf('.');
+  if (separator < 1) throw new Error('Unsupported sharing code.');
+  const format = value.slice(0, separator);
+  const bytes = base64UrlToBytes(value.slice(separator + 1));
+  let decodedBytes = bytes;
+  if (format === 'g') {
+    if (typeof DecompressionStream !== 'function') throw new Error('This browser cannot open compressed quote links.');
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+    decodedBytes = new Uint8Array(await new Response(stream).arrayBuffer());
+  } else if (format !== 'j') {
+    throw new Error('Unsupported sharing code.');
+  }
+  return JSON.parse(new TextDecoder().decode(decodedBytes));
+}
+
+function clearShareHash() {
+  if (window.location.hash.startsWith('#share=')) {
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
+  }
+}
+
+async function copyShareLink(link) {
+  if (navigator.clipboard?.writeText && window.isSecureContext) {
+    await navigator.clipboard.writeText(link);
+    return true;
+  }
+  window.prompt('Copy this quote-sharing link:', link);
+  return false;
+}
+
+async function shareSavedQuote(id) {
+  const item = loadSavedQuotes().find(quote => quote.id === id);
+  if (!item) return;
+  try {
+    const encoded = await encodeSharedQuote(sharedQuotePayload(item));
+    const url = new URL(window.location.href);
+    url.hash = `share=${encoded}`;
+    const copied = await copyShareLink(url.toString());
+    if (copied) window.alert('Share link copied. It expires in 24 hours and does not include the quote name.');
+  } catch {
+    window.alert('The share link could not be created in this browser.');
+  }
+}
+
+async function handleSharedQuoteFromUrl() {
+  if (!window.location.hash.startsWith('#share=')) return;
+  try {
+    const payload = await decodeSharedQuote(window.location.hash.slice(7));
+    if (payload?.v !== 2 || !Array.isArray(payload.p)) throw new Error('Invalid shared quote.');
+    if (!Number.isFinite(payload.e) || Date.now() > payload.e) {
+      clearShareHash();
+      window.alert('This shared quote link has expired.');
+      return;
+    }
+    const accepted = window.confirm('A shared quote is ready. Load it into this page? It will not be saved automatically.');
+    clearShareHash();
+    if (!accepted) return;
+
+    const primary = expandSharedLines(payload.p);
+    const spouse = payload.s && Array.isArray(payload.q)
+      ? expandSharedLines(payload.q)
+      : COVERAGE_TYPES.map(type => makeLine(type));
+    Object.assign(state, {
+      quoteName: '',
+      billingMode: MODAL_FACTORS[payload.b] ? payload.b : 'Monthly',
+      includeSpouse: payload.s && payload.q ? 'Yes' : 'No',
+      includeWaiver: payload.w ? 'Yes' : 'No',
+      includeChild: payload.k ? 'Yes' : 'No',
+      primaryDob: String(payload.d || ''),
+      spouseDob: payload.s ? String(payload.h || '') : '',
+      childCoverage: payload.k ? String(payload.c || '') : '10',
+      primary,
+      spouse
+    });
+    rerender();
+  } catch {
+    clearShareHash();
+    window.alert('This quote-sharing link is invalid or could not be opened.');
+  }
 }
 
 function parseSavedQuotesValue(raw) {
@@ -3415,7 +3738,12 @@ function renderSavedQuotes() {
           </div>
           <div class="actions">
             <button class="ghost-btn" data-load-id="${item.id}">Load</button>
-            <button class="danger-btn" data-delete-id="${item.id}">Delete</button>
+            <button class="icon-btn" type="button" data-share-id="${item.id}" aria-label="Share quote" title="Share quote">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3"></path><path d="m8 7 4-4 4 4"></path><path d="M6 10H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1"></path></svg>
+            </button>
+            <button class="icon-btn delete" type="button" data-delete-id="${item.id}" aria-label="Delete quote" title="Delete quote">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"></path><path d="M9 7V4h6v3"></path><path d="m7 7 1 14h8l1-14"></path><path d="M10 11v6M14 11v6"></path></svg>
+            </button>
           </div>
         </div>
         <div class="quote-data">Primary lines: ${primaryCount}${item.includeSpouse === 'Yes' ? ` • Spouse lines: ${spouseCount}` : ''}${item.includeChild === 'Yes' ? ` • Child rider ${escapeHtml(item.childCoverage || '')}` : ''}${item.primaryDob ? ` • Primary DOB: ${escapeHtml(item.primaryDob)}` : ''}</div>
@@ -3424,6 +3752,7 @@ function renderSavedQuotes() {
   }).join('') + reminderHtml;
 
   root.querySelectorAll('[data-load-id]').forEach(btn => btn.onclick = () => loadQuote(btn.dataset.loadId));
+  root.querySelectorAll('[data-share-id]').forEach(btn => btn.onclick = () => shareSavedQuote(btn.dataset.shareId));
   root.querySelectorAll('[data-delete-id]').forEach(btn => btn.onclick = () => deleteQuote(btn.dataset.deleteId));
 }
 
@@ -3474,11 +3803,13 @@ function rerender() {
 
 document.getElementById('saveQuoteBtn').onclick = saveCurrentQuote;
 document.getElementById('clearFormBtn').onclick = clearForm;
+document.getElementById('crmCopyBtn').onclick = copyCrmSummary;
 document.getElementById('yearByYearBtn').onclick = openYearByYearBreakdown;
 document.addEventListener('keydown', handleQuoteTabOrder);
 
 footer();
 clearForm();
+handleSharedQuoteFromUrl();
 </script>
 </body>
 </html>

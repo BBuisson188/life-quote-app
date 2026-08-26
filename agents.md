@@ -248,6 +248,40 @@ Each base or rider line keeps its live modal premium compact by default. A small
 
 Saving uses the current client name as the only matching rule. If that name exactly matches a saved draft after trimming outside spaces, update the newest matching entry. If there is no exact match, create a new saved draft. Renaming a loaded quote therefore creates a new entry and leaves the originally loaded draft unchanged.
 
+### Fill spouse line from primary
+
+Each enabled spouse line shows a compact paste icon beside its heading only when the corresponding primary line is enabled and has a selected product, positive coverage, valid rate class, and valid anniversary date. Base plan maps to base plan and each rider maps to the rider with the same number.
+
+The button fills spouse fields independently without field-level change tracking:
+
+* Product copies only while the spouse product is still the default `Cust Exch`. When product copies, its original/subsequent basis and V1/V2 selection copy with it.
+* Coverage copies only when the spouse value is blank, invalid, zero, or negative.
+* Rate class copies only while the spouse class is still the default `N`, and only when the source class is allowed for the spouse product.
+* Anniversary copies only when the spouse value is blank or invalid.
+* Table rating is never copied.
+* The button does not enable or create spouse riders; the matching spouse line must already be enabled.
+
+### Saved-quote sharing
+
+Each saved quote has a compact `Share` icon. The current sharing format supports the complete saved quote: all enabled primary and spouse base/rider lines, waiver selection, child rider and coverage, billing mode, DOBs, rating tables, manual product fields, rate basis, and V1/V2 selections. Old basic-only test links are not kept backward compatible.
+
+* The share link contains a compact, gzip-compressed snapshot in the URL fragment. No database or server-side quote storage is used.
+* The quote/client name, saved-quote ID, and saved timestamp are never included.
+* Links expire after 24 hours according to the receiving browser's clock.
+* Opening a link asks before loading it, removes the fragment from the address bar, leaves the quote name blank, and never saves the imported quote automatically.
+* The recipient must enter a local quote name and use the normal Save quote button if they want to retain it.
+
+### CRM text summary
+
+The compact document icon in the sticky premium bar copies a plain-text summary of the live quote for pasting into a CRM. It never includes the client/quote name, DOBs, anniversaries, rate classes, table ratings, versions, or calculation details.
+
+* A single line per insured is formatted like `Primary: Cust Exch - 150K` and `Spouse: Cust Exch - 80K`.
+* When an insured has multiple enabled lines, the line type is included, such as `Primary Base Plan` or `Primary Rider 1`.
+* An enabled child rider gets its own coverage line.
+* The final line identifies the selected billing mode, such as `Total monthly premium: $85.21`.
+* Export is blocked when any enabled line is incomplete, unavailable, unsupported, missing required waiver premium, or otherwise not fully quotable. A partial or zero total must not be copied.
+* Successful clipboard copying briefly changes the icon to a checkmark. If direct clipboard access is unavailable, the app falls back to a manual copy prompt.
+
 ## Change strategy
 
 When asked to make a change:

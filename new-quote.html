@@ -346,16 +346,33 @@
   .callout strong { display: block; margin-bottom: 3px; color: var(--amber); }
 
   .saved-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
-  .saved-list { display: flex; flex-direction: column; gap: 8px; }
-  .saved-item { padding: 10px; border: 1px solid #e1e9f4; border-radius: 12px; background: #fff; }
-  .saved-item-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-  .saved-name { font-size: 13px; font-weight: 850; }
+  .saved-list { display: flex; flex-direction: column; gap: 6px; }
+  .saved-item { padding: 10px 11px; border: 1px solid #e1e9f4; border-radius: 12px; background: #fff; box-shadow: 0 5px 14px rgba(15, 23, 42, .035); }
+  .saved-item-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .saved-item-copy { min-width: 0; }
+  .saved-name { overflow: hidden; font-size: 13px; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
   .saved-meta { margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.4; }
-  .saved-item-buttons { display: flex; gap: 5px; }
-  .saved-item-buttons button { min-height: 30px; padding: 5px 7px; font-size: 11px; }
+  .saved-item-buttons { flex: 0 0 auto; display: flex; align-items: center; gap: 5px; flex-wrap: nowrap; }
+  .saved-item-buttons .ghost-button { min-height: 34px; padding: 6px 9px; font-size: 11px; }
+  .saved-icon-button {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #315780;
+    border: 1px solid #cdd9e7;
+    border-radius: 10px;
+    background: #fff;
+  }
+  .saved-icon-button:hover { background: #f1f7ff; }
+  .saved-icon-button:focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; }
+  .saved-icon-button svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+  .saved-icon-button.delete { color: var(--red); border-color: #fecaca; background: #fff7f7; }
+  .saved-icon-button.delete:hover { background: #feecec; }
   .saved-empty, .privacy-note { color: var(--muted); font-size: 11px; line-height: 1.45; }
   .privacy-note { margin-top: 10px; }
-  .delete-button { color: var(--red); border-color: #fecaca; background: #fff7f7; }
   .page-switch-link {
     display: flex;
     align-items: center;
@@ -658,6 +675,7 @@
 <script>
   const RATE_BOOK = JSON.parse(document.getElementById('rateBookData').textContent);
   const STORAGE_KEY = 'new-business-quote-history';
+  const SHARE_LINK_TTL_MS = 24 * 60 * 60 * 1000;
   function makeInsuredState() {
     return { name: '', sex: 'female', tobacco: 'no', ageMode: 'dob', dob: '', age: '', health: 'standard', exactClass: '4', exactClassTouched: false, waiver: false, child: false, childAmount: '1000', lines: [{}] };
   }
@@ -1108,11 +1126,126 @@
       .replace(/"/g, '&quot;');
   }
 
-  function savedQuotePayload() {
+  function shareableInsuredState(value) {
+    const copy = cloneData(value || makeInsuredState());
+    copy.name = '';
+    return copy;
+  }
+
+  function sharedQuotePayload(item) {
+    return {
+      v: 1,
+      e: Date.now() + SHARE_LINK_TTL_MS,
+      b: item.billingMode || 'Monthly',
+      s: item.spouseIncluded ? 1 : 0,
+      p: shareableInsuredState(item.primary),
+      q: item.spouseIncluded ? shareableInsuredState(item.spouse) : null
+    };
+  }
+
+  function bytesToBase64Url(bytes) {
+    let binary = '';
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  }
+
+  function base64UrlToBytes(value) {
+    const base64 = value.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '='.repeat((4 - base64.length % 4) % 4);
+    const binary = atob(padded);
+    return Uint8Array.from(binary, character => character.charCodeAt(0));
+  }
+
+  async function encodeSharedQuote(payload) {
+    const bytes = new TextEncoder().encode(JSON.stringify(payload));
+    if (typeof CompressionStream === 'function') {
+      const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'));
+      return `g.${bytesToBase64Url(new Uint8Array(await new Response(stream).arrayBuffer()))}`;
+    }
+    return `j.${bytesToBase64Url(bytes)}`;
+  }
+
+  async function decodeSharedQuote(value) {
+    const separator = value.indexOf('.');
+    if (separator < 1) throw new Error('Unsupported sharing code.');
+    const format = value.slice(0, separator);
+    const bytes = base64UrlToBytes(value.slice(separator + 1));
+    let decodedBytes = bytes;
+    if (format === 'g') {
+      if (typeof DecompressionStream !== 'function') throw new Error('This browser cannot open compressed quote links.');
+      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+      decodedBytes = new Uint8Array(await new Response(stream).arrayBuffer());
+    } else if (format !== 'j') {
+      throw new Error('Unsupported sharing code.');
+    }
+    return JSON.parse(new TextDecoder().decode(decodedBytes));
+  }
+
+  function clearShareHash() {
+    if (window.location.hash.startsWith('#share=')) {
+      window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
+    }
+  }
+
+  async function copyShareLink(link) {
+    try {
+      if (navigator.clipboard?.writeText && window.isSecureContext) {
+        await navigator.clipboard.writeText(link);
+        return true;
+      }
+    } catch {
+      // Use the manual copy prompt below when direct clipboard access is unavailable.
+    }
+    window.prompt('Copy this quote-sharing link:', link);
+    return false;
+  }
+
+  async function shareSavedQuote(id) {
+    const item = readSavedQuotes().find(quote => quote.id === id);
+    if (!item) return;
+    try {
+      const encoded = await encodeSharedQuote(sharedQuotePayload(item));
+      const url = new URL(window.location.href);
+      url.hash = `share=${encoded}`;
+      const copied = await copyShareLink(url.toString());
+      if (copied) window.alert('Share link copied. It expires in 24 hours and does not include client names.');
+    } catch {
+      window.alert('The share link could not be created in this browser.');
+    }
+  }
+
+  async function handleSharedQuoteFromUrl() {
+    if (!window.location.hash.startsWith('#share=')) return;
+    try {
+      const payload = await decodeSharedQuote(window.location.hash.slice(7));
+      if (payload?.v !== 1 || !payload.p || typeof payload.p !== 'object') throw new Error('Invalid shared quote.');
+      if (!Number.isFinite(payload.e) || Date.now() > payload.e) {
+        clearShareHash();
+        window.alert('This shared quote link has expired.');
+        return;
+      }
+      const accepted = window.confirm('A shared new-business quote is ready. Load it into this page? It will not be saved automatically.');
+      clearShareHash();
+      if (!accepted) return;
+
+      Object.assign(insuredState.primary, normalizeLoadedInsured({ ...payload.p, name: '' }, 'thousands'));
+      Object.assign(insuredState.spouse, normalizeLoadedInsured({ ...(payload.q || {}), name: '' }, 'thousands'));
+      spouseIncluded = Boolean(payload.s && payload.q);
+      const billingModes = ['Annual', 'Semi-Annual', 'Quarterly', 'Monthly'];
+      document.getElementById('billingMode').value = billingModes.includes(payload.b) ? payload.b : 'Monthly';
+      document.getElementById('premiumModeLabel').textContent = document.getElementById('billingMode').value;
+      rebuildInsuredForms();
+    } catch {
+      clearShareHash();
+      window.alert('This quote-sharing link is invalid or could not be opened.');
+    }
+  }
+
+  function savedQuotePayload(existingId = null) {
     const primaryQuote = quoteInsured(insuredState.primary);
     const spouseQuote = spouseIncluded ? quoteInsured(insuredState.spouse) : null;
     return {
-      id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+      id: existingId || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())),
       savedAt: new Date().toISOString(),
       coverageInputUnits: 'thousands',
       billingMode: document.getElementById('billingMode').value,
@@ -1126,7 +1259,14 @@
 
   function saveCurrentQuote() {
     const items = readSavedQuotes();
-    items.unshift(savedQuotePayload());
+    const quoteName = String(insuredState.primary.name || '').trim();
+    const existingIndex = quoteName
+      ? items.findIndex(item => String(item.primary?.name || '').trim() === quoteName)
+      : -1;
+    const existingId = existingIndex >= 0 ? items[existingIndex].id : null;
+    const payload = savedQuotePayload(existingId);
+    if (existingIndex >= 0) items.splice(existingIndex, 1);
+    items.unshift(payload);
     if (writeSavedQuotes(items.slice(0, 25))) renderSavedQuotes();
   }
 
@@ -1188,22 +1328,27 @@
     root.innerHTML = items.map(item => {
       const savedDate = new Date(item.savedAt);
       const label = item.primary?.name || (item.spouseIncluded && item.spouse?.name ? `Primary + ${item.spouse.name}` : 'Unnamed quote');
-      const premium = item.spouseIncluded && item.spousePremium ? `${item.primaryPremium} + ${item.spousePremium}` : item.primaryPremium;
       return `
         <div class="saved-item">
           <div class="saved-item-head">
-            <div>
+            <div class="saved-item-copy">
               <div class="saved-name">${escapeHtml(label)}</div>
-              <div class="saved-meta">${escapeHtml(Number.isNaN(savedDate.getTime()) ? '' : savedDate.toLocaleString())}<br>${escapeHtml(item.billingMode || 'Monthly')} - ${escapeHtml(premium || 'Pending')}</div>
+              <div class="saved-meta">${escapeHtml(Number.isNaN(savedDate.getTime()) ? '' : `Saved ${savedDate.toLocaleString()}`)}</div>
             </div>
             <div class="saved-item-buttons">
               <button class="ghost-button" type="button" data-load-quote="${escapeHtml(item.id)}">Load</button>
-              <button class="ghost-button delete-button" type="button" data-delete-quote="${escapeHtml(item.id)}">Delete</button>
+              <button class="saved-icon-button" type="button" data-share-quote="${escapeHtml(item.id)}" aria-label="Share quote" title="Share quote">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3"></path><path d="m8 7 4-4 4 4"></path><path d="M6 10H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1"></path></svg>
+              </button>
+              <button class="saved-icon-button delete" type="button" data-delete-quote="${escapeHtml(item.id)}" aria-label="Delete quote" title="Delete quote">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"></path><path d="M9 7V4h6v3"></path><path d="m7 7 1 14h8l1-14"></path><path d="M10 11v6M14 11v6"></path></svg>
+              </button>
             </div>
           </div>
         </div>`;
     }).join('');
     root.querySelectorAll('[data-load-quote]').forEach(button => button.onclick = () => loadSavedQuote(button.dataset.loadQuote));
+    root.querySelectorAll('[data-share-quote]').forEach(button => button.onclick = () => shareSavedQuote(button.dataset.shareQuote));
     root.querySelectorAll('[data-delete-quote]').forEach(button => button.onclick = () => deleteSavedQuote(button.dataset.deleteQuote));
   }
 
@@ -1232,6 +1377,7 @@
   dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
   renderSavedQuotes();
   updateSnapshot();
+  handleSharedQuoteFromUrl();
 </script>
 </body>
 </html>

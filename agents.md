@@ -287,6 +287,7 @@ The compact document icon in the sticky premium bar copies a plain-text summary 
 * Successful clipboard copying briefly changes the icon to a checkmark. If direct clipboard access is unavailable, the app falls back to a manual copy prompt.
 * When waiver premium is actually included on an end-of-term line, `(WP)` appears immediately after that product. The child rider is also marked `(WP)` when its waiver premium is included.
 * The new-business page has the same compact CRM-copy icon. It produces one line per insured with product, term, coverage, class or class range, and that insured's separate application premium; and marks products and child riders with `(WP)` when waiver is selected. It does not include a household total, client names, ages, sex, tobacco status, or health wording.
+* New-business birth dates use manual text entry rather than a browser calendar picker. They accept the same flexible formats as the end-of-term page, including `m/d/yy`, hyphen or period separators, and six- or eight-digit entries, then normalize valid dates to `MM/DD/YYYY` on blur.
 
 ## Change strategy
 

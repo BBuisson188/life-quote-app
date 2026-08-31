@@ -581,7 +581,7 @@
           <label><input data-field="ageMode" type="radio" value="dob" checked /><span>Birthday</span></label>
           <label><input data-field="ageMode" type="radio" value="age" /><span>Age</span></label>
         </div>
-        <input data-field="dob" type="date" aria-label="Birth date" />
+        <input data-field="dob" type="text" inputmode="numeric" placeholder="m/d/yy" autocomplete="bday" aria-label="Birth date" />
         <input data-field="age" class="hidden" type="number" min="0" max="120" inputmode="numeric" placeholder="Age" aria-label="Issue age" />
       </div>
     </div>
@@ -681,10 +681,59 @@
     return Number.isFinite(number) ? number : 0;
   }
 
+  function normalizeDateInputValue(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+
+    // Preserve birthdays stored by the previous native date input.
+    const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+    if (isoMatch) value = `${isoMatch[2]}/${isoMatch[3]}/${isoMatch[1]}`;
+
+    // Support digits-only dates like 01051977 or 010577.
+    if (/^\d{6,8}$/.test(String(value))) {
+      if (String(value).length === 8) {
+        value = `${String(value).slice(0, 2)}/${String(value).slice(2, 4)}/${String(value).slice(4, 8)}`;
+      } else if (String(value).length === 6) {
+        value = `${String(value).slice(0, 2)}/${String(value).slice(2, 4)}/${String(value).slice(4, 6)}`;
+      } else {
+        value = String(value);
+      }
+    }
+
+    const parts = String(value).trim().replace(/[.\-]/g, '/').split('/').map(part => part.trim()).filter(Boolean);
+    if (parts.length !== 3) return raw;
+    const [monthStr, dayStr, yearStr] = parts;
+    if (!/^\d{1,2}$/.test(monthStr) || !/^\d{1,2}$/.test(dayStr) || !/^\d{1,4}$/.test(yearStr)) return raw;
+    const month = Number(monthStr);
+    const day = Number(dayStr);
+    let year = Number(yearStr);
+    if (yearStr.length <= 2) {
+      const cutoff = (new Date().getFullYear() + 5) % 100;
+      year = year <= cutoff ? 2000 + year : 1900 + year;
+    }
+    const test = new Date(year, month - 1, day);
+    if (
+      Number.isNaN(test.getTime()) ||
+      test.getFullYear() !== year ||
+      test.getMonth() !== month - 1 ||
+      test.getDate() !== day
+    ) return raw;
+    return `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}/${String(year).padStart(4, '0')}`;
+  }
+
+  function parseDate(value) {
+    const normalized = normalizeDateInputValue(value);
+    if (!/^\d{2}\/\d{2}\/\d{4}$/.test(normalized)) return null;
+    const [month, day, year] = normalized.split('/').map(Number);
+    const date = new Date(year, month - 1, day);
+    if (Number.isNaN(date.getTime())) return null;
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+    return date;
+  }
+
   function ageLastBirthday(value) {
-    if (!value) return null;
-    const dob = new Date(`${value}T12:00:00`);
-    if (Number.isNaN(dob.getTime())) return null;
+    const dob = parseDate(value);
+    if (!dob) return null;
     const today = new Date();
     let age = today.getFullYear() - dob.getFullYear();
     const beforeBirthday = today.getMonth() < dob.getMonth() || (today.getMonth() === dob.getMonth() && today.getDate() < dob.getDate());
@@ -903,6 +952,14 @@
       };
       input.addEventListener('input', handler);
       input.addEventListener('change', handler);
+      if (field === 'dob') {
+        input.addEventListener('blur', () => {
+          const normalized = normalizeDateInputValue(input.value);
+          input.value = normalized;
+          state[field] = normalized;
+          updateSnapshot();
+        });
+      }
     });
 
     const childSelect = body.querySelector('[data-field="childAmount"]');

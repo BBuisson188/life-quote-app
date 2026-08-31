@@ -201,6 +201,7 @@ The `Year-by-year breakdown` button on the end-of-term page opens `projection.ht
 Projection behavior:
 
 * The breakdown button stays hidden until at least one enabled, supported product line has a valid birth date, anniversary date, coverage amount, and calculable premium. Other incomplete or unsupported lines do not hide it once one eligible line is ready.
+* On mobile, the page handles vertical scrolling while the table handles only horizontal scrolling. The anniversary-year column remains sticky for orientation, but header and total columns are not sticky on narrow screens so they cannot overlap or crowd the product columns.
 * Each enabled base plan or rider gets its own coverage and selected-mode premium columns. A combined premium total appears at the right when multiple lines are present.
 * A line does not show years before its entered anniversary date.
 * Unsupported product families remain visible with `Rate unavailable`; unavailable values create a clearly marked partial total instead of silently contributing zero.

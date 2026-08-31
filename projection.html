@@ -139,10 +139,23 @@
   .notes div + div { margin-top:7px; }
   .hidden { display:none !important; }
   @media (max-width:700px) {
-    body { padding:14px; }
-    .top { flex-direction:column; }
-    .actions { justify-content:flex-start; }
-    .table-wrap { max-height:calc(100vh - 190px); }
+    body { padding:10px; }
+    .top { flex-direction:column; gap:12px; margin-bottom:12px; }
+    .actions { width:100%; justify-content:flex-start; }
+    .table-wrap {
+      width:100%;
+      max-height:none;
+      overflow-x:auto;
+      overflow-y:hidden;
+      border-radius:12px;
+      -webkit-overflow-scrolling:touch;
+      overscroll-behavior-x:contain;
+    }
+    th, td { padding:8px 9px; font-size:12px; }
+    thead th { position:static; }
+    tbody th { left:0; min-width:82px; }
+    .total, .total-head { position:static; }
+    .line-head-wrap { flex-direction:column; gap:5px; }
   }
   @media print {
     body { padding:0; background:#fff; }

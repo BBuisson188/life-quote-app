@@ -249,6 +249,8 @@ Each base or rider line keeps its live modal premium compact by default. A small
 
 Saving uses the current client name as the only matching rule. If that name exactly matches a saved draft after trimming outside spaces, update the newest matching entry. If there is no exact match, create a new saved draft. Renaming a loaded quote therefore creates a new entry and leaves the originally loaded draft unchanged.
 
+Saved-draft cards are intentionally compact. They show only the quote name, saved date/time, and the Load, Share, and Delete controls. The controls stay together on one non-wrapping row; quote details such as billing mode, spouse status, line counts, riders, and DOBs are not displayed in this list.
+
 ### Fill spouse line from primary
 
 Each enabled spouse line shows a compact paste icon beside its heading only when the corresponding primary line is enabled and has a selected product, positive coverage, valid rate class, and valid anniversary date. Base plan maps to base plan and each rider maps to the rider with the same number.

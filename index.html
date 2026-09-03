@@ -622,8 +622,8 @@
 
 <script>
 const APP = Object.freeze({
-  VERSION: '1.49',
-  VERSION_DATE: '2026-08-26',
+  VERSION: '1.50',
+  VERSION_DATE: '2026-09-03',
   TITLE_BASE: 'Life Quote Workflow'
 });
 const VERSION = APP.VERSION;
@@ -1662,6 +1662,37 @@ function totalC4Coverage(side) {
   return allLines()
     .filter(({ side: lineSide, line }) => lineSide === side && line.enabled && C4_PRODUCTS.has(line.product))
     .reduce((sum, { line }) => sum + (numericAmount(line.amount) || 0), 0);
+}
+
+function totalCoverageForProductLimits(side) {
+  return state[side]
+    .filter(line => line.enabled)
+    .reduce((sum, line) => {
+      const amount = numericAmount(line.amount);
+      return sum + (Number.isFinite(amount) && amount > 0 ? amount : 0);
+    }, 0);
+}
+
+function termNowMaximumForIssueAge(age) {
+  if (!Number.isFinite(age) || age < 18) return null;
+  if (age <= 45) return 300;
+  if (age <= 50) return 250;
+  return 150;
+}
+
+function c6MinimumForIssueAge(age) {
+  if (!Number.isFinite(age) || age < 18) return null;
+  if (age <= 45) return 150;
+  if (age <= 50) return 100;
+  return 50;
+}
+
+function wholeCoverageMoney(amountInThousands) {
+  return (amountInThousands * 1000).toLocaleString(undefined, {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0
+  });
 }
 
 function getStandardBandOffset(totalCoverage) {
@@ -3096,7 +3127,47 @@ function firstValidationMessage(items) {
 function renderDiagnostics() {
   const root = document.getElementById('diagnostics');
   const items = [];
+  const coverageAdvisories = [];
   const calc = calculations();
+
+  const insuredSides = state.includeSpouse === 'Yes' ? ['primary', 'spouse'] : ['primary'];
+  insuredSides.forEach(side => {
+    const insuredLabel = side === 'primary' ? 'Primary' : 'Spouse';
+    const totalCoverage = totalCoverageForProductLimits(side);
+    const originalLines = calc.lines.filter(item => item.side === side && item.line.rateBasis === 'original');
+
+    const termNowRules = originalLines
+      .filter(item => TNOW_PRODUCTS.has(item.line.product) && numericAmount(item.line.amount) > 0)
+      .map(item => ({ age: item.calc.age, limit: termNowMaximumForIssueAge(item.calc.age) }))
+      .filter(rule => Number.isFinite(rule.limit));
+    if (termNowRules.length) {
+      const rule = termNowRules.reduce((strictest, current) => current.limit < strictest.limit ? current : strictest);
+      if (totalCoverage > rule.limit) {
+        coverageAdvisories.push({
+          cls: 'warn',
+          sticky: false,
+          title: `${insuredLabel}: total coverage exceeds the T.Now maximum`,
+          note: `At issue age ${rule.age}, T.Now normally allows up to ${wholeCoverageMoney(rule.limit)} of total coverage per individual. This insured has ${wholeCoverageMoney(totalCoverage)} across all enabled base plans and riders. The quote remains available for exception cases.`
+        });
+      }
+    }
+
+    const c6Rules = originalLines
+      .filter(item => C6_PRODUCTS.has(item.line.product) && numericAmount(item.line.amount) > 0)
+      .map(item => ({ age: item.calc.age, limit: c6MinimumForIssueAge(item.calc.age) }))
+      .filter(rule => Number.isFinite(rule.limit));
+    if (c6Rules.length) {
+      const rule = c6Rules.reduce((strictest, current) => current.limit > strictest.limit ? current : strictest);
+      if (totalCoverage < rule.limit) {
+        coverageAdvisories.push({
+          cls: 'warn',
+          sticky: false,
+          title: `${insuredLabel}: total coverage is below the C6 minimum`,
+          note: `At issue age ${rule.age}, C6 normally requires at least ${wholeCoverageMoney(rule.limit)} of total coverage per individual. This insured has ${wholeCoverageMoney(totalCoverage)} across all enabled base plans and riders. The quote remains available for exception cases.`
+        });
+      }
+    }
+  });
 
   allLines().forEach(({ side, line, index }) => {
     if (!line.enabled) return;
@@ -3176,9 +3247,11 @@ function renderDiagnostics() {
     }
   });
 
+  items.push(...coverageAdvisories);
+
   const stickyAlert = document.getElementById('stickyValidationAlert');
   const stickyText = document.getElementById('stickyValidationText');
-  const firstProblem = items.find(item => item && item.cls !== 'good');
+  const firstProblem = items.find(item => item && item.cls !== 'good' && item.sticky !== false);
 
   if (stickyAlert && stickyText) {
     if (firstProblem) {

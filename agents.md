@@ -194,6 +194,12 @@ TermNow and Custom Advantage use scheduled subsequent rates from the PLA-165 rat
 * The PLA-165 DT100 factors are shared by both product families and both rate-book versions, but they are not the same factors as the C4 DT100 table.
 * Waiver is not calculated on the subsequent or DT100 path. Existing omitted-waiver/partial-total behavior applies when waiver would otherwise still be active.
 
+For original-anniversary entries only, show non-blocking coverage eligibility notices in Quote checks. Determine the threshold using the original issue age of an enabled T.Now or C6 line, but compare it with all enabled base-plan and rider coverage for that insured across every product family. Do not apply these notices to subsequent-anniversary entries, do not include the child rider in the insured's coverage total, and do not promote them to the sticky premium warning.
+
+* T.Now maximum: $300,000 at issue ages 18–45, $250,000 at ages 46–50, and $150,000 at ages 51 and older.
+* C6 minimum: $150,000 at issue ages 18–45, $100,000 at ages 46–50, and $50,000 at ages 51 and older.
+* These are advisory limits because exceptions can occur; they must never block or alter the quote.
+
 ### Year-by-year projection
 
 The `Year-by-year breakdown` button on the end-of-term page opens `projection.html` in a normal full-page browser tab. Projection columns use `Primary` and `Spouse`, never client names. Rows represent each product's anniversary year and continue through the year the insured turns 100.

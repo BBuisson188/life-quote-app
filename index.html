@@ -622,8 +622,8 @@
 
 <script>
 const APP = Object.freeze({
-  VERSION: '1.50',
-  VERSION_DATE: '2026-09-03',
+  VERSION: '1.51',
+  VERSION_DATE: '2026-09-08',
   TITLE_BASE: 'Life Quote Workflow'
 });
 const VERSION = APP.VERSION;
@@ -1650,6 +1650,26 @@ function ageFromDates(dobValue, annivValue) {
 function insuranceAgeAtDate(dob, anniv) {
   if (!(dob instanceof Date) || !(anniv instanceof Date)) return null;
   return Math.round((anniv - dob) / (DAYS_PER_YEAR * 24 * 60 * 60 * 1000));
+}
+
+function ordinalDay(day) {
+  const remainder100 = day % 100;
+  if (remainder100 >= 11 && remainder100 <= 13) return `${day}th`;
+  if (day % 10 === 1) return `${day}st`;
+  if (day % 10 === 2) return `${day}nd`;
+  if (day % 10 === 3) return `${day}rd`;
+  return `${day}th`;
+}
+
+function insuranceBirthdayLabel(dobValue) {
+  const dob = parseDate(dobValue);
+  if (!dob) return '—';
+  const targetMonth = (dob.getMonth() + 6) % 12;
+  const targetYear = dob.getFullYear() + (dob.getMonth() >= 6 ? 1 : 0);
+  const finalDay = new Date(targetYear, targetMonth + 1, 0).getDate();
+  const targetDay = Math.min(dob.getDate(), finalDay);
+  const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
+  return `${monthLabels[targetMonth]} ${ordinalDay(targetDay)}`;
 }
 
 function totalNonIbrCoverage(side = null) {
@@ -3016,12 +3036,8 @@ function renderCoverageSection(containerId, side) {
               <div class="quote-breakdown-v">${effectiveClassLabel}</div>
             </div>
             <div class="quote-breakdown-item">
-              <div class="quote-breakdown-k">Banding coverage</div>
-              <div class="quote-breakdown-v mono">${Number.isFinite(calc.bandCoverage) ? money(calc.bandCoverage * 1000) : '—'}</div>
-            </div>
-            <div class="quote-breakdown-item">
-              <div class="quote-breakdown-k">Coverage annual</div>
-              <div class="quote-breakdown-v mono">${money(calc.annualCoverage)}</div>
+              <div class="quote-breakdown-k">Insurance birthday</div>
+              <div class="quote-breakdown-v mono">${insuranceBirthdayLabel(side === 'primary' ? state.primaryDob : state.spouseDob)}</div>
             </div>
             ${state.includeWaiver === 'Yes' ? `<div class="quote-breakdown-item">
               <div class="quote-breakdown-k">Waiver annual</div>

@@ -250,7 +250,9 @@ For C4-IBR:
 
 ### Expandable quote details
 
-Each base or rider line keeps its live modal premium compact by default. A small disclosure arrow in the result area expands calculation details for review, including cost per thousand, insurance age, effective class, banding coverage, annual coverage premium, waiver when applicable, policy fee, and annual totals before and after the fee.
+Each base or rider line keeps its live modal premium compact by default. A small disclosure arrow in the result area expands calculation details for review, including cost per thousand, insurance age, effective class, insurance birthday, waiver when applicable, policy fee, and annual totals before and after the fee. Do not show separate banding-coverage or coverage-annual fields in this expanded section.
+
+Insurance birthday is six calendar months after that insured's birth date and displays without a year using abbreviated month plus ordinal day, such as `Sept 21st`. If the target month is shorter than the birth-date day, use that month's final valid day.
 
 ### Saved quote updates
 

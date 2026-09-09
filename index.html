@@ -62,6 +62,7 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 14px;
+  flex-wrap: wrap;
   color: #fff;
 }
   .sticky-premium-copy {
@@ -115,6 +116,58 @@
   gap:10px;
   flex-wrap:wrap;
 }
+.premium-breakdown-toggle {
+  min-height:38px;
+  padding:8px 10px;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  border:1px solid rgba(255,255,255,.34);
+  border-radius:12px;
+  background:rgba(255,255,255,.14);
+  color:#fff;
+  font-size:12px;
+  font-weight:800;
+  cursor:pointer;
+  white-space:nowrap;
+}
+.premium-breakdown-toggle:hover { background:rgba(255,255,255,.22); }
+.premium-breakdown-toggle:focus-visible { outline:2px solid #bfdbfe; outline-offset:2px; }
+.premium-breakdown-toggle svg {
+  width:14px;
+  height:14px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:2;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  transition:transform .18s ease;
+}
+.premium-breakdown-toggle[aria-expanded="true"] svg { transform:rotate(180deg); }
+.sticky-premium-breakdown {
+  flex:0 0 100%;
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(170px, 1fr));
+  gap:10px;
+  padding-top:12px;
+  border-top:1px solid rgba(255,255,255,.2);
+}
+.premium-breakdown-item {
+  min-width:0;
+  padding:9px 11px;
+  border:1px solid rgba(255,255,255,.18);
+  border-radius:12px;
+  background:rgba(255,255,255,.09);
+}
+.premium-breakdown-k {
+  color:rgba(255,255,255,.62);
+  font-size:10px;
+  font-weight:850;
+  letter-spacing:.07em;
+  text-transform:uppercase;
+}
+.premium-breakdown-coverage { margin-top:4px; color:#fff; font-size:14px; font-weight:800; }
+.premium-breakdown-premium { margin-top:2px; color:#dbeafe; font-size:12px; font-weight:700; }
 .projection-btn {
   border:1px solid rgba(255,255,255,.34);
   background:rgba(255,255,255,.14);
@@ -193,6 +246,7 @@
   line-height: 1;
   color: #ffffff !important;
 }
+    .sticky-premium-breakdown { grid-template-columns:1fr; }
     .layout { grid-template-columns: 1fr; }
     #quoteDetailsStack, #mainCoverageStack, #savedQuotesStack { grid-column: auto; grid-row: auto; }
   }
@@ -489,8 +543,13 @@
         <button class="crm-copy-btn" id="crmCopyBtn" type="button" aria-label="Copy text summary for CRM" title="Copy text summary for CRM">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"></path><path d="M14 3v5h5"></path><path d="M10 12h5M10 16h5"></path></svg>
         </button>
+        <button class="premium-breakdown-toggle hidden" id="premiumBreakdownToggle" type="button" aria-expanded="false" aria-controls="premiumBreakdown">
+          Breakdown
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+        </button>
         <button class="projection-btn hidden" id="yearByYearBtn" type="button">Year-by-year breakdown</button>
       </div>
+      <div class="sticky-premium-breakdown hidden" id="premiumBreakdown"></div>
     </div>
   </section>
 
@@ -622,8 +681,8 @@
 
 <script>
 const APP = Object.freeze({
-  VERSION: '1.51',
-  VERSION_DATE: '2026-09-08',
+  VERSION: '1.53',
+  VERSION_DATE: '2026-09-09',
   TITLE_BASE: 'Life Quote Workflow'
 });
 const VERSION = APP.VERSION;
@@ -1463,6 +1522,7 @@ const state = {
   primary: [makeLine('Base Plan')],
   spouse: [makeLine('Base Plan')]
 };
+let premiumBreakdownExpanded = false;
 
 function makeLine(type) {
   return {
@@ -3329,6 +3389,42 @@ function updateSummary() {
   const metaSpouse = document.getElementById('metaSpouse');
   if (metaPrimary) metaPrimary.textContent = primaryText;
   if (metaSpouse) metaSpouse.textContent = spouseText;
+
+  const hasAdditionalInsuredRider = state.primary.slice(1).some(line => line.enabled)
+    || (state.includeSpouse === 'Yes' && state.spouse.slice(1).some(line => line.enabled));
+  const hasBreakdown = hasAdditionalInsuredRider || state.includeChild === 'Yes';
+  if (!hasBreakdown) premiumBreakdownExpanded = false;
+
+  const breakdownToggle = document.getElementById('premiumBreakdownToggle');
+  const breakdown = document.getElementById('premiumBreakdown');
+  if (breakdownToggle) {
+    breakdownToggle.classList.toggle('hidden', !hasBreakdown);
+    breakdownToggle.setAttribute('aria-expanded', String(hasBreakdown && premiumBreakdownExpanded));
+  }
+  if (breakdown) {
+    breakdown.classList.toggle('hidden', !hasBreakdown || !premiumBreakdownExpanded);
+    if (hasBreakdown) {
+      const premiumForSide = side => calc.lines
+        .filter(item => item.side === side)
+        .reduce((sum, item) => sum + (item.calc.modalTotal || 0), 0);
+      const summaryItem = (label, coverage, premium) => `
+        <div class="premium-breakdown-item">
+          <div class="premium-breakdown-k">${label}</div>
+          <div class="premium-breakdown-coverage">${wholeCoverageMoney(coverage)} coverage</div>
+          <div class="premium-breakdown-premium">${money(premium)} ${state.billingMode}</div>
+        </div>`;
+      const items = [summaryItem('Primary', totalCoverageForProductLimits('primary'), premiumForSide('primary'))];
+      if (state.includeSpouse === 'Yes') {
+        items.push(summaryItem('Spouse', totalCoverageForProductLimits('spouse'), premiumForSide('spouse')));
+      }
+      if (state.includeChild === 'Yes') {
+        items.push(summaryItem('Child Rider', numericAmount(state.childCoverage) || 0, calc.childModal || 0));
+      }
+      breakdown.innerHTML = items.join('');
+    } else {
+      breakdown.innerHTML = '';
+    }
+  }
 }
 
 
@@ -3410,8 +3506,15 @@ function addNextRider(side, index) {
 
 function removeLine(side, index) {
   const lines = state[side];
-  for (let i = index; i < lines.length; i++) {
-    lines[i] = makeLine(COVERAGE_TYPES[i]);
+  if (index <= 0 || index >= lines.length) return;
+
+  const remainingRiders = lines
+    .slice(1)
+    .filter((line, riderIndex) => riderIndex + 1 !== index && line.enabled);
+  for (let i = 1; i < lines.length; i++) {
+    lines[i] = remainingRiders[i - 1]
+      ? { ...remainingRiders[i - 1], type: COVERAGE_TYPES[i], enabled: true }
+      : makeLine(COVERAGE_TYPES[i]);
   }
   lines[0].enabled = true;
   rerender();
@@ -3721,6 +3824,7 @@ async function handleSharedQuoteFromUrl() {
       primary,
       spouse
     });
+    premiumBreakdownExpanded = false;
     rerender();
   } catch {
     clearShareHash();
@@ -3827,6 +3931,7 @@ function loadQuote(id) {
   state.primary.forEach(normalizeLineForLoad);
   while (state.spouse.length < 4) state.spouse.push(makeLine(COVERAGE_TYPES[state.spouse.length]));
   state.spouse.forEach(normalizeLineForLoad);
+  premiumBreakdownExpanded = false;
   rerender();
 }
 
@@ -3897,6 +4002,7 @@ function clearForm() {
   state.spouse = COVERAGE_TYPES.map(t => makeLine(t));
   state.primary[0].enabled = true;
   state.spouse[0].enabled = true;
+  premiumBreakdownExpanded = false;
   rerender();
 }
 
@@ -3919,6 +4025,10 @@ document.getElementById('saveQuoteBtn').onclick = saveCurrentQuote;
 document.getElementById('clearFormBtn').onclick = clearForm;
 document.getElementById('crmCopyBtn').onclick = copyCrmSummary;
 document.getElementById('yearByYearBtn').onclick = openYearByYearBreakdown;
+document.getElementById('premiumBreakdownToggle').onclick = () => {
+  premiumBreakdownExpanded = !premiumBreakdownExpanded;
+  updateSummary();
+};
 document.addEventListener('keydown', handleQuoteTabOrder);
 
 footer();

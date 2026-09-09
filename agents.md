@@ -254,6 +254,8 @@ Each base or rider line keeps its live modal premium compact by default. A small
 
 Insurance birthday is six calendar months after that insured's birth date and displays without a year using abbreviated month plus ordinal day, such as `Sept 21st`. If the target month is shorter than the birth-date day, use that month's final valid day.
 
+The sticky premium bar remains compact by default. When either insured has an enabled rider beyond the base plan, or when the child rider is enabled, show a compact Breakdown control. Expanding it shows separate coverage and selected-mode premium summaries for Primary, Spouse when included, and Child Rider when enabled. Primary and spouse displayed coverage totals include all of their enabled base plans and riders, including IBR coverage; the child rider is never included in either insured's coverage or premium and appears only as its own third summary. The large combined quoted premium remains unchanged. The expanded state is temporary and resets when clearing, loading, or importing a quote.
+
 ### Saved quote updates
 
 Saving uses the current client name as the only matching rule. If that name exactly matches a saved draft after trimming outside spaces, update the newest matching entry. If there is no exact match, create a new saved draft. Renaming a loaded quote therefore creates a new entry and leaves the originally loaded draft unchanged.
@@ -274,6 +276,8 @@ The button fills spouse fields independently without field-level change tracking
 * Anniversary copies only when the spouse value is blank or invalid.
 * Table rating is never copied.
 * The button does not enable or create spouse riders; the matching spouse line must already be enabled.
+
+Removing a primary or spouse rider removes only that selected rider. Any later enabled riders move up one position with all entered values preserved, and their displayed Rider number updates to match the new position.
 
 ### Saved-quote sharing
 

@@ -145,7 +145,7 @@ In other words:
 
 ### 10\) Combined coverage banding
 
-Rate bands are based on combined enabled policy coverage across products and insureds. Both manual `IBR` and automated `C4-IBR` coverage are excluded and must not move any other product into a different band. Preferred eligibility remains a separate per-insured calculation.
+Rate bands are based on combined enabled policy coverage across products and insureds. Manual `IBR` and automated `C4-IBR` / `C5-IBR` coverage are excluded and must not move any other product into a different band. Preferred eligibility remains a separate per-insured calculation.
 
 For the manual `Other` product, the agent can use either one basic cost-per-thousand rate or four fixed manual bands: under $150,000, $150,000 through $249,999, $250,000 through $499,999, and $500,000 or more. The banded rate uses the same combined non-IBR policy coverage. Band thresholds are not editable and additional bands are not currently supported.
 
@@ -178,6 +178,35 @@ For subsequent C4 quotes:
 * The line should show a month/year note like `Level until Jun 2031` when the rate has a level period.
 * The main quote line should only show the current subsequent premium. Future-year C4 values belong on the dedicated year-by-year projection page.
 * Waiver of premium is not currently available for subsequent C4 rates. If waiver is selected and a C4 line is set to subsequent rates, block that line's quote and show a clear warning instead of silently quoting an incomplete premium.
+
+### C5 / Custom Advantage (PLA-115, 8.07)
+
+The C5 family is separate from C4 and C6. Source: `pla_115 - C5.pdf`, PLA-115 (8.07). All six products are available for primary/spouse base plans and riders, saved drafts, sharing, CRM summaries, and year-by-year projections. Guaranteed maximum rates are excluded.
+
+* Initial terms and issue ages: C5-10 ages 18–70, C5-15 ages 18–65, C5-20 ages 18–60, C5-25 and C5-30 ages 18–45, and C5-35 ages 18–40.
+* Initial rates distinguish PP, P, N, and T. Preserve combined policy banding, separate per-insured preferred eligibility, table ratings, modal factors, and the $75 fee on the primary base plan only. Initial waiver rates come from PLA-115 printed page 26; existing primary-age waiver handling and child waiver behavior remain unchanged.
+* C5-10, 15, 20, 30, and 35 accept original or subsequent anniversaries. Their named initial terms are level; subsequent premiums use the shared C5 scheduled table, in table-defined blocks through age 69 and annually from age 70 through 94. Normal coverage expires at age 95, not 100.
+* C5 subsequent rates require their own table: they differ from C6 V1 at ages 77–94. C5 has no V1/V2 switch.
+* Eligible C5 lines can convert independently to DT100 when the first subsequent premium anniversary is at least age 70. The first conversion year retains its coverage and premium; later coverage uses basic annual premium before the policy fee divided by 100, multiplied by the PLA-115 DT100 factor. These age-70–99 factors match the existing C6 factors exactly, not C4's factors. DT100 expires at age 100.
+* Subsequent-only C5 quotes with waiver are blocked, like C4. Projections omit unavailable subsequent waiver and mark partial premiums while waiver would otherwise still apply.
+
+C5-25 is intentionally different, and the user approved requiring **original coverage and original anniversary only**. It has no subsequent-basis selector. Do not accept current reduced coverage as original coverage.
+
+* Original coverage stays level for policy years 1–25, then decreases using the exact PLA-115 printed-page-29 issue-age death-benefit factors. Use the printed rows, including the 46-and-later row, rather than interpolating reductions.
+* The initial premium stays level until age 65 or for 30 years, whichever is longer. This is not a 25-year premium renewal. The main quote shows that original premium; the projection shows the subsequent coverage and premium changes.
+* After that initial premium period, use the separate C5-25 scheduled subsequent table (printed page 27). Multiply its rate by the death-benefit factor and round to the nearest cent **per original $1,000 unit**, then multiply by original coverage units and the table-rating factor. Preserve the applicable policy fee and modal factor.
+* Normal C5-25 coverage expires at age 95. DT100 eligibility is evaluated at the first premium renewal, not at the year-26 coverage reduction; conversion retains that renewal year's already-reduced coverage and exact renewal premium.
+
+C5-IBR follows the same practical entry and calculation pattern as automated C4-IBR:
+
+* Enter the current accumulated C5-IBR coverage and the actual number of accepted increases, from 1 through 10. It is available as a rider line, not a base policy.
+* Divide current accumulated coverage evenly across the accepted increases. Increases 1 through 4 use the C5-20 rate at issue insurance age; increases 5 through 10 use the C5-20 rate at insurance age on each corresponding anniversary. Increase 5 occurs five years after the original anniversary.
+* C5-IBR inherits its band from that insured's enabled regular C5 coverage, including C5-25. Do not include C5-IBR in its own band or in combined banding for other products.
+* PP, P, N, and T are available according to the C5-20 table and existing per-insured preferred eligibility. No policy fee or discount applies.
+* Waiver is not approved on the automated C5-IBR path. Block it and direct the user to manual IBR when waiver must be included.
+* C5-IBR is not independently projected on the year-by-year page, matching current C4-IBR behavior.
+
+Verification: all six initial worked examples printed in the book match ($90.55, $39.49, $61.18, $124.42, $385.57, and $55.74 monthly). Boundary checks cover subsequent blocks, age-95/100 expiry, C5-25 issue ages 18/25/35/36/40/45, and existing C4-30/combined-banding/child-waiver behavior.
 
 ### TermNow and Custom Advantage (C6) subsequent rates
 

@@ -193,7 +193,9 @@
     <h2>Projection notes</h2>
     <ul id="lineNotes"></ul>
     <div>C4 coverage is held level. Original C4 rates remain level for the product's named initial term, then move to the shared C4 subsequent table. Subsequent blocks are held for the number of years in that table; age 99 is the final premium year and the policy is shown as expired in the year the insured turns 100.</div>
-    <div>For an eligible DT100 conversion, the first subsequent year's premium and coverage stay unchanged. Beginning the following year, that premium remains level while coverage is calculated from the C4 DT100 face-amount table using basic annual premium before the $75 policy fee.</div>
+    <div>For an eligible C4 DT100 conversion, the first subsequent year's premium and coverage stay unchanged. Beginning the following year, that premium remains level while coverage is calculated from the C4 DT100 face-amount table using basic annual premium before the $75 policy fee.</div>
+    <div>C5 uses PLA-115 scheduled rates only and normally expires at age 95. C5-10, 15, 20, 30, and 35 keep their original coverage and named initial level term, then use table-defined subsequent blocks through age 69 and annual rates from age 70.</div>
+    <div>C5-25 requires original coverage and anniversary. Coverage decreases from policy year 26 using the issue-age death-benefit table. The initial premium remains level to age 65 or for 30 years, whichever is longer, then uses the separate C5-25 scheduled table. Eligible C5 lines can convert to DT100 at their first premium renewal at age 70 or later, keeping that year's coverage and premium. Later coverage uses the PLA-115 DT100 factors (shared with C6), and coverage expires at age 100.</div>
     <div>TermNow and Custom Advantage (C6) use scheduled subsequent rates only. Their normal coverage expires at age 95. Use the compact V1/V2 button beside each product heading to match the policy; eligible lines can independently convert to DT100 through age 100.</div>
     <div>Custom Exchange coverage remains level for policy years 1–10, then automatically decreases using the policy's issue-age column from the Custom Exchange death-benefit table. Its base premium and policy fee remain level.</div>
     <div>When Custom Exchange is converted to ART at policy year 11, its original coverage remains level and its premium changes annually using attained-age ART rates. The current effective class, combined coverage band, table rating, billing mode, and applicable $75 base-policy fee are used.</div>
@@ -306,7 +308,7 @@ function bindDt100Buttons(data) {
         button.setAttribute('aria-pressed', 'false');
       } else {
         dt100Selections.add(index);
-        button.textContent = data.entries[index]?.versionedRateEligible ? 'Use scheduled rates' : 'Use C4 rates';
+        button.textContent = 'Use scheduled rates';
         button.classList.add('active');
         button.setAttribute('aria-pressed', 'true');
       }

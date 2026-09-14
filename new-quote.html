@@ -314,6 +314,10 @@
   }
   .insured-total strong { font-size: 13px; }
   .insured-total span { color: var(--muted); font-size: 12px; }
+  .insured-total span.has-warning { color: var(--amber); font-weight: 800; }
+  .insured-total-copy { min-width: 0; }
+  .insured-total-copy span { display: block; margin-top: 3px; line-height: 1.4; }
+  .insured-total-copy .underwriting-detail { color: #526b87; font-size: 11px; }
 
   .add-spouse {
     display: flex;
@@ -547,7 +551,7 @@
         <div class="panel-body">
           <div class="callout">
             <strong>PLA-200 rates connected</strong>
-            Includes PowerTerm and PrecisionTerm initial rates, waiver rates, child rider pricing, and the rate book's required rounding method.
+            Includes PowerTerm and PrecisionTerm initial rates, waiver rates, child rider pricing, eligibility notices, expected underwriting requirements, and the rate book's required rounding method.
           </div>
         </div>
       </section>
@@ -567,6 +571,9 @@
       <li>Male standard is Class 6; best quotable is Class 3.</li>
       <li>Female tobacco standard is Class 9; male tobacco standard is Class 10.</li>
       <li>Some health concerns range from one class above standard through the tobacco class.</li>
+      <li>Very healthy always estimates from the best quotable class through standard; underwriting determines final eligibility.</li>
+      <li>A specifically selected upgraded class requires at least $150,000 of total coverage for that insured.</li>
+      <li>Specific-class choices are limited by product and sex. Class 7 is reserved for child-rider conversions.</li>
     </ul>
   </div>
 </dialog>
@@ -642,7 +649,11 @@
   </div>
 
   <div class="insured-total">
-    <div><strong data-role="insuredLabel">Primary estimate</strong><br /><span data-role="quoteDetail">Enter an issue age and coverage amount</span></div>
+    <div class="insured-total-copy">
+      <strong data-role="insuredLabel">Primary estimate</strong>
+      <span data-role="quoteDetail">Enter an issue age and coverage amount</span>
+      <span class="underwriting-detail" data-role="underwritingDetail"></span>
+    </div>
     <strong data-role="premiumOutput">Premium pending</strong>
   </div>
 </template>
@@ -765,6 +776,49 @@
   function concernsClass(sex) { return defaultClass(sex) + 1; }
   function standardClass(state) { return state.tobacco === 'yes' ? tobaccoClass(state.sex) : defaultClass(state.sex); }
 
+  function insuredCoverage(state) {
+    return state.lines.reduce((total, line) => total + numericCoverage(line.amount), 0);
+  }
+
+  function activeProducts(state) {
+    const linesWithCoverage = state.lines.filter(line => numericCoverage(line.amount) > 0);
+    const source = linesWithCoverage.length ? linesWithCoverage : state.lines;
+    return [...new Set(source.map(line => line.product || 'PowerTerm'))];
+  }
+
+  function allowedExactClasses(state) {
+    const byProductAndSex = {
+      PowerTerm: {
+        female: [1, 2, 3, 4, 8, 9],
+        male: [3, 4, 5, 6, 9, 10]
+      },
+      PrecisionTerm: {
+        female: [1, 2, 3, 4, 8, 9],
+        male: [2, 3, 5, 6, 9, 10]
+      }
+    };
+    return activeProducts(state).reduce((allowed, product, index) => {
+      const productClasses = byProductAndSex[product]?.[state.sex] || [];
+      return index === 0 ? productClasses : allowed.filter(rateClass => productClasses.includes(rateClass));
+    }, []);
+  }
+
+  function isUpgradeClass(state, rateClass) {
+    return Number(rateClass) < standardClass(state);
+  }
+
+  function coverageBelowUpgradeMinimum(state) {
+    const totalCoverage = insuredCoverage(state);
+    return totalCoverage > 0 && totalCoverage < 150000;
+  }
+
+  function effectiveExactClass(state) {
+    const selectedClass = Number(state.exactClass);
+    return coverageBelowUpgradeMinimum(state) && isUpgradeClass(state, selectedClass)
+      ? standardClass(state)
+      : selectedClass;
+  }
+
   function issueAge(state) {
     if (state.ageMode === 'dob') return ageLastBirthday(state.dob);
     if (state.age === '' || state.age === undefined) return null;
@@ -819,7 +873,7 @@
 
   function quoteForClass(state, rateClass) {
     const age = issueAge(state);
-    const totalCoverage = state.lines.reduce((total, line) => total + numericCoverage(line.amount), 0);
+    const totalCoverage = insuredCoverage(state);
     if (age === null) return { error: 'Enter an issue age or birth date' };
     if (totalCoverage <= 0) return { error: 'Enter a coverage amount' };
     let annual = RATE_BOOK.policyFee;
@@ -870,10 +924,77 @@
       if (low.error || high.error) return { error: low.error || high.error };
       return { low: low.modal, high: high.modal, totalCoverage: low.totalCoverage };
     }
-    const rateClass = state.health === 'exact' ? Number(state.exactClass) : standardClass(state);
+    const rateClass = state.health === 'exact' ? effectiveExactClass(state) : standardClass(state);
     const quote = quoteForClass(state, rateClass);
     if (quote.error) return quote;
     return { low: quote.modal, high: quote.modal, totalCoverage: quote.totalCoverage };
+  }
+
+  function coverageEligibilityWarnings(state) {
+    const age = issueAge(state);
+    const totalCoverage = insuredCoverage(state);
+    if (age === null || totalCoverage <= 0) return [];
+
+    const warnings = [];
+    const hasPowerTerm = state.lines.some(line => (line.product || 'PowerTerm') === 'PowerTerm' && numericCoverage(line.amount) > 0);
+    const hasPrecisionTerm = state.lines.some(line => line.product === 'PrecisionTerm' && numericCoverage(line.amount) > 0);
+    const powerTermMaximum = age <= 45 ? 300000 : age <= 50 ? 250000 : 150000;
+    const precisionTermMinimum = age <= 45 ? 150000 : age <= 50 ? 100000 : 50000;
+
+    if (hasPowerTerm && totalCoverage < 15000) {
+      warnings.push('PowerTerm minimum: $15,000');
+    }
+    if (hasPowerTerm && totalCoverage > powerTermMaximum) {
+      warnings.push(`PowerTerm age ${age} maximum: ${moneyWhole(powerTermMaximum)}`);
+    }
+    if (hasPrecisionTerm && totalCoverage < precisionTermMinimum) {
+      warnings.push(`PrecisionTerm age ${age} minimum: ${moneyWhole(precisionTermMinimum)}`);
+    }
+    if (state.health === 'exact' && isUpgradeClass(state, state.exactClass) && coverageBelowUpgradeMinimum(state)) {
+      warnings.push(`Class upgrades require at least $150,000; this quote uses standard Class ${standardClass(state)} instead of Class ${state.exactClass}.`);
+    }
+    return warnings;
+  }
+
+  function underwritingCode(product, age, totalCoverage) {
+    if (product === 'PowerTerm') {
+      if (totalCoverage <= 50000) return age <= 60 ? 'B' : 'C';
+      if (totalCoverage <= 150000) return age <= 50 ? 'B' : 'C';
+      if (totalCoverage <= 250000) return age <= 50 ? 'B' : null;
+      if (totalCoverage <= 300000) return age <= 45 ? 'B' : null;
+      return null;
+    }
+    if (product === 'PrecisionTerm') {
+      if (totalCoverage < 50000) return null;
+      if (totalCoverage < 100000) return age <= 50 ? null : age <= 60 ? 'D' : 'F';
+      if (totalCoverage < 150000) return age <= 45 ? null : age <= 60 ? 'D' : 'F';
+      if (totalCoverage < 200000) return age <= 60 ? 'D' : 'F';
+      if (totalCoverage <= 500000) return age <= 50 ? 'D' : 'F';
+      if (totalCoverage <= 750000) return age <= 45 ? 'D' : 'F';
+      if (totalCoverage <= 1000000) return age <= 40 ? 'D' : 'F';
+      if (totalCoverage <= 4000000) return 'F';
+      return 'G';
+    }
+    return null;
+  }
+
+  function underwritingSummary(state) {
+    const age = issueAge(state);
+    const totalCoverage = insuredCoverage(state);
+    if (age === null || totalCoverage <= 0) return '';
+    const descriptions = {
+      B: 'Rapid Data Check',
+      C: 'Rapid Data Check + telephone underwriting interview',
+      D: 'Rapid Data Check + blood, urine and vitals',
+      F: 'Rapid Data Check + telephone interview, blood, urine and vitals',
+      G: 'Rapid Data Check + telephone interview, resting EKG, blood, urine and vitals'
+    };
+    const requirements = activeProducts(state)
+      .map(product => ({ product, code: underwritingCode(product, age, totalCoverage) }))
+      .filter(item => item.code);
+    if (!requirements.length) return '';
+    if (requirements.length === 1) return `Expected underwriting: ${descriptions[requirements[0].code]}.`;
+    return `Expected underwriting: ${requirements.map(item => `${item.product} — ${descriptions[item.code]}`).join('; ')}.`;
   }
 
   function formatQuoteRange(quote) {
@@ -892,6 +1013,9 @@
       return { copy: 'Estimated range from one class above standard through the tobacco class.', pill: `Classes ${concernsClass(state.sex)}-${tobaccoClass(state.sex)}` };
     }
     if (state.health === 'exact') {
+      if (coverageBelowUpgradeMinimum(state) && isUpgradeClass(state, state.exactClass)) {
+        return { copy: `Class ${state.exactClass} requires $150,000; using standard Class ${standardClass(state)}.`, pill: `Class ${standardClass(state)}` };
+      }
       return { copy: 'Using a specific class for this estimate.', pill: `Class ${state.exactClass}` };
     }
     return { copy: 'Standard estimate based on sex. Underwriting determines the final class.', pill: `Class ${standardClass(state)}` };
@@ -907,8 +1031,13 @@
     line.querySelector('[data-line-field="term"]').value = lineState.term || '20';
     line.querySelector('[data-line-field="amount"]').value = lineState.amount || '';
     line.querySelectorAll('[data-line-field]').forEach(input => {
-      input.addEventListener('input', () => { lineState[input.dataset.lineField] = input.value; updateSnapshot(); });
-      input.addEventListener('change', () => { lineState[input.dataset.lineField] = input.value; updateSnapshot(); });
+      const updateLine = () => {
+        lineState[input.dataset.lineField] = input.value;
+        updateInsuredCard(card, insuredKey);
+        updateSnapshot();
+      };
+      input.addEventListener('input', updateLine);
+      input.addEventListener('change', updateLine);
     });
     line.querySelector('[data-action="remove-line"]').addEventListener('click', () => {
       const index = [...root.children].indexOf(line);
@@ -916,6 +1045,7 @@
       state.lines.splice(index, 1);
       line.remove();
       syncRemoveButtons(card);
+      updateInsuredCard(card, insuredKey);
       updateSnapshot();
     });
     root.appendChild(fragment);
@@ -935,11 +1065,16 @@
     dobInput.classList.toggle('hidden', !usingDob);
     ageInput.classList.toggle('hidden', usingDob);
 
+    const exact = card.querySelector('[data-field="exactClass"]');
+    const allowedClasses = allowedExactClasses(state);
+    const currentClass = Number(state.exactClass);
+    const fallbackClass = allowedClasses.includes(standardClass(state)) ? standardClass(state) : allowedClasses[0];
+    state.exactClass = String(allowedClasses.includes(currentClass) ? currentClass : fallbackClass);
+    exact.innerHTML = allowedClasses.map(rateClass => `<option value="${rateClass}">Class ${rateClass}</option>`).join('');
+    exact.value = state.exactClass;
     const health = healthPresentation(state);
     card.querySelector('[data-role="healthCopy"]').textContent = health.copy;
     card.querySelector('[data-role="classPill"]').textContent = health.pill;
-    const exact = card.querySelector('[data-field="exactClass"]');
-    exact.value = state.exactClass;
     exact.classList.toggle('hidden', state.health !== 'exact');
     card.querySelector('[data-role="classPill"]').classList.toggle('hidden', state.health === 'exact');
   }
@@ -994,6 +1129,7 @@
       const newLine = {};
       state.lines.push(newLine);
       addCoverageLine(card, insuredKey, newLine);
+      updateInsuredCard(card, insuredKey);
       updateSnapshot();
     });
     body.querySelector('[data-action="class-info"]').addEventListener('click', () => document.getElementById('classInfoDialog').showModal());
@@ -1070,10 +1206,20 @@
   function updateSnapshot() {
     const primaryQuote = quoteInsured(insuredState.primary);
     const spouseQuote = spouseIncluded ? quoteInsured(insuredState.spouse) : null;
+    const primaryWarnings = primaryQuote.error ? [] : coverageEligibilityWarnings(insuredState.primary);
+    const spouseWarnings = spouseIncluded && !spouseQuote?.error ? coverageEligibilityWarnings(insuredState.spouse) : [];
+    const primaryDetail = document.querySelector('[data-insured="primary"] [data-role="quoteDetail"]');
+    const spouseDetail = document.querySelector('[data-insured="spouse"] [data-role="quoteDetail"]');
+    const primaryUnderwriting = document.querySelector('[data-insured="primary"] [data-role="underwritingDetail"]');
+    const spouseUnderwriting = document.querySelector('[data-insured="spouse"] [data-role="underwritingDetail"]');
     document.querySelector('[data-insured="primary"] [data-role="premiumOutput"]').textContent = formatQuoteRange(primaryQuote);
-    document.querySelector('[data-insured="primary"] [data-role="quoteDetail"]').textContent = primaryQuote.error || 'Includes one $65 annual policy fee';
+    primaryDetail.textContent = primaryQuote.error || primaryWarnings.join(' ') || 'Includes one $65 annual policy fee';
+    primaryDetail.classList.toggle('has-warning', primaryWarnings.length > 0);
+    primaryUnderwriting.textContent = primaryQuote.error ? '' : underwritingSummary(insuredState.primary);
     document.querySelector('[data-insured="spouse"] [data-role="premiumOutput"]').textContent = spouseQuote ? formatQuoteRange(spouseQuote) : 'Premium pending';
-    document.querySelector('[data-insured="spouse"] [data-role="quoteDetail"]').textContent = spouseQuote?.error || 'Includes one $65 annual policy fee';
+    spouseDetail.textContent = spouseQuote?.error || spouseWarnings.join(' ') || 'Includes one $65 annual policy fee';
+    spouseDetail.classList.toggle('has-warning', spouseWarnings.length > 0);
+    spouseUnderwriting.textContent = spouseQuote?.error ? '' : underwritingSummary(insuredState.spouse);
 
     const household = document.getElementById('householdPremium');
     const topMessage = document.getElementById('topQuoteMessage');
@@ -1085,8 +1231,12 @@
       const low = primaryQuote.low + (spouseQuote?.low || 0);
       const high = primaryQuote.high + (spouseQuote?.high || 0);
       household.textContent = low === high ? money(low) : `${money(low)} - ${money(high)}`;
-      topMessage.textContent = 'Uses PLA-200 initial rates. Underwriting determines the final rate class.';
-      topMessage.classList.remove('has-warning');
+      const eligibilityWarnings = [
+        ...primaryWarnings.map(message => `Primary: ${message}`),
+        ...spouseWarnings.map(message => `Spouse: ${message}`)
+      ];
+      topMessage.textContent = eligibilityWarnings.join(' ') || 'Uses PLA-200 initial rates. Underwriting determines the final rate class.';
+      topMessage.classList.toggle('has-warning', eligibilityWarnings.length > 0);
     }
     document.getElementById('primaryCoverageTotal').textContent = moneyWhole(coverageTotal('primary'));
     document.getElementById('primaryPremiumTotal').textContent = primaryQuote.error ? 'Pending' : formatQuoteRange(primaryQuote);

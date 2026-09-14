@@ -149,6 +149,10 @@ Rate bands are based on combined enabled policy coverage across products and ins
 
 For the manual `Other` product, the agent can use either one basic cost-per-thousand rate or four fixed manual bands: under $150,000, $150,000 through $249,999, $250,000 through $499,999, and $500,000 or more. The banded rate uses the same combined non-IBR policy coverage. Band thresholds are not editable and additional bands are not currently supported.
 
+On the new-business page, show compact, non-blocking age-based coverage notices using all entered coverage for that insured. PowerTerm's normal minimum is $15,000; its maximum is $300,000 at ages 18–45, $250,000 at ages 46–50, and $150,000 at ages 51 and older. PrecisionTerm's normal minimum is $150,000 at ages 18–45, $100,000 at ages 46–50, and $50,000 at ages 51 and older. These notices do not alter an otherwise available quote; PowerTerm above the rate table's absolute $300,000 ceiling remains unavailable.
+
+The new-business `Very healthy` option always shows the existing best-through-standard estimate range, regardless of coverage amount. A manually selected upgraded class below $150,000 falls back to that insured's standard class with a warning. Specific-class choices are filtered by product and sex, and Class 7 is excluded because it is reserved for child-rider conversions. Each fully quotable insured also shows the expected underwriting requirement from the PowerTerm/PrecisionTerm age-and-amount chart; this is informational and does not change the premium.
+
 ## Product-specific notes
 
 ### Removed / unavailable option

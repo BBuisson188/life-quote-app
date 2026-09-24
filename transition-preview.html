@@ -126,7 +126,7 @@
   function beginDirectTransfer() {
     const nonce = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
     const destination = `${DESTINATION_ORIGIN}${DESTINATION_PATH}#transfer=${encodeURIComponent(nonce)}`;
-    const transferWindow = window.open(destination, 'lifeQuoteSavedDataTransfer');
+    const transferWindow = window.open(destination, '_blank');
     if (!transferWindow) {
       setStatus('The transfer window was blocked. Allow pop-ups for this site, then try again.', true);
       return;

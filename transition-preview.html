@@ -31,7 +31,9 @@
   .choice.primary { border-color:var(--blue); background:linear-gradient(135deg, var(--blue), var(--blue2)); color:#fff; }
   .choice.primary span { color:rgba(255,255,255,.82); }
   .transfer-link { margin-top:14px; text-align:center; }
-  .transfer-link a { color:var(--blue); font-weight:800; }
+  .transfer-link button { padding:0; border:0; background:none; color:var(--blue); font:inherit; font-weight:800; text-decoration:underline; cursor:pointer; }
+  .transfer-status { min-height:18px; margin:8px 0 0; color:var(--muted); font-size:13px; line-height:1.4; text-align:center; }
+  .transfer-status.error { color:#b91c1c; }
   .sunset { margin-top:28px; padding:14px 16px; border-left:4px solid #d99b2b; border-radius:10px; background:#fff8e8; color:#6b430b; font-size:14px; line-height:1.5; }
   .preview-note { margin:20px 0 0; color:#758397; font-size:12px; text-align:center; }
 </style>
@@ -51,14 +53,109 @@
       <span>View, retrieve, or finish work previously saved in this browser.</span>
     </a>
   </div>
-  <p class="transfer-link"><a href="legacy.html#move-saved-quotes">Move saved quotes to the new site</a></p>
+  <p class="transfer-link"><button id="moveSavedQuotesBtn" type="button">Move saved quotes to the new site</button></p>
+  <p class="transfer-status" id="transferStatus" role="status" aria-live="polite"></p>
   <div class="sunset">The old version will remain available temporarily so you can access previously saved work. Starting <strong id="sunsetDate">October 5, 2026</strong>, please use the new site exclusively.</div>
   <p class="preview-note">Phase 1 preview — this page is not the current GitHub landing page.</p>
 </main>
 <script>
+(() => {
   // Keep the retirement date in one obvious place for later updates.
   const SUNSET_DATE = 'October 5, 2026';
+  const TRANSFER_FORMAT = 'life-quote-transfer';
+  const TRANSFER_VERSION = 1;
+  const END_OF_TERM_STORAGE_KEY = 'life-quote-history';
+  const NEW_BUSINESS_STORAGE_KEY = 'new-business-quote-history';
+  const DESTINATION_ORIGIN = 'https://lifequote-d33.pages.dev';
+  const DESTINATION_PATH = '/transfer.html';
+  const status = document.getElementById('transferStatus');
+
   document.getElementById('sunsetDate').textContent = SUNSET_DATE;
+
+  function readArray(key) {
+    try {
+      const value = JSON.parse(localStorage.getItem(key) || '[]');
+      return Array.isArray(value) ? value : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function mergeSavedQuotes(groups) {
+    const merged = [];
+    const seen = new Set();
+    groups.flat().forEach(item => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return;
+      const identity = item.id ? `id:${item.id}` : `json:${JSON.stringify(item)}`;
+      if (seen.has(identity)) return;
+      seen.add(identity);
+      merged.push(item);
+    });
+    merged.sort((a, b) => (Date.parse(b?.savedAt || '') || 0) - (Date.parse(a?.savedAt || '') || 0));
+    return merged;
+  }
+
+  function endOfTermQuotes() {
+    const groups = [readArray(END_OF_TERM_STORAGE_KEY)];
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (!key || key === END_OF_TERM_STORAGE_KEY || key === 'life-quote-history-migrated-v1') continue;
+      if (/^life-quote-history(?:-v\d+)?$/i.test(key)) groups.push(readArray(key));
+    }
+    return mergeSavedQuotes(groups);
+  }
+
+  function buildTransferPackage() {
+    return {
+      format:TRANSFER_FORMAT,
+      version:TRANSFER_VERSION,
+      exportedAt:new Date().toISOString(),
+      sourceOrigin:window.location.origin,
+      collections:{
+        endOfTerm:endOfTermQuotes(),
+        newBusiness:readArray(NEW_BUSINESS_STORAGE_KEY)
+      }
+    };
+  }
+
+  function setStatus(message, isError = false) {
+    status.textContent = message;
+    status.className = `transfer-status${isError ? ' error' : ''}`;
+  }
+
+  function beginDirectTransfer() {
+    const nonce = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+    const destination = `${DESTINATION_ORIGIN}${DESTINATION_PATH}#transfer=${encodeURIComponent(nonce)}`;
+    const transferWindow = window.open(destination, 'lifeQuoteSavedDataTransfer');
+    if (!transferWindow) {
+      setStatus('The transfer window was blocked. Allow pop-ups for this site, then try again.', true);
+      return;
+    }
+
+    setStatus('Opening the saved-quote transfer…');
+    const timeout = window.setTimeout(() => {
+      window.removeEventListener('message', handleReady);
+      setStatus('The new site did not respond. Check your connection, then try again.', true);
+    }, 20000);
+
+    function handleReady(event) {
+      if (event.origin !== DESTINATION_ORIGIN || event.source !== transferWindow) return;
+      if (event.data?.type !== 'life-quote-transfer-ready' || event.data?.nonce !== nonce) return;
+      window.clearTimeout(timeout);
+      window.removeEventListener('message', handleReady);
+      transferWindow.postMessage({
+        type:'life-quote-transfer-package',
+        nonce,
+        payload:buildTransferPackage()
+      }, DESTINATION_ORIGIN);
+      setStatus('Saved quotes sent to the new site for your review. Nothing was deleted here.');
+    }
+
+    window.addEventListener('message', handleReady);
+  }
+
+  document.getElementById('moveSavedQuotesBtn').addEventListener('click', beginDirectTransfer);
+})();
 </script>
 </body>
 </html>

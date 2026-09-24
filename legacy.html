@@ -574,7 +574,6 @@
   <div class="legacy-transition-actions">
     <a class="legacy-primary" href="https://lifequote-d33.pages.dev/">Open new Life Quote</a>
     <button id="moveSavedQuotesBtn" type="button">Move saved quotes</button>
-    <button id="downloadSavedQuotesBtn" type="button">Download backup</button>
   </div>
 </aside>
 <div class="legacy-transfer-status" id="legacyTransferStatus" role="status" aria-live="polite"></div>
@@ -4667,36 +4666,19 @@ handleSharedQuoteFromUrl();
     status.style.color = isError ? '#b91c1c' : '#475569';
   }
 
-  function downloadPackage() {
-    try {
-      const transferPackage = buildTransferPackage();
-      const blob = new Blob([JSON.stringify(transferPackage, null, 2)], { type:'application/json' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = `life-quote-backup-${new Date().toISOString().slice(0, 10)}.lifequote`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(link.href);
-      setStatus('Backup downloaded. It may contain names and birth dates, so keep the file private.');
-    } catch {
-      setStatus('The backup could not be created in this browser.', true);
-    }
-  }
-
   function beginDirectTransfer() {
     const nonce = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
     const destination = `${DESTINATION_ORIGIN}${DESTINATION_PATH}#transfer=${encodeURIComponent(nonce)}`;
     const transferWindow = window.open(destination, 'lifeQuoteSavedDataTransfer');
     if (!transferWindow) {
-      setStatus('The transfer window was blocked. Allow pop-ups for this site or use Download backup.', true);
+      setStatus('The transfer window was blocked. Allow pop-ups for this site, then try Move saved quotes again.', true);
       return;
     }
 
     setStatus('Waiting for the new Life Quote site…');
     const timeout = window.setTimeout(() => {
       window.removeEventListener('message', handleReady);
-      setStatus('The new site did not respond. The Phase 1 preview may not be deployed yet; Download backup is still available.', true);
+      setStatus('The new site did not respond. Check your connection, then try Move saved quotes again.', true);
     }, 20000);
 
     function handleReady(event) {
@@ -4716,10 +4698,9 @@ handleSharedQuoteFromUrl();
   }
 
   document.getElementById('moveSavedQuotesBtn').addEventListener('click', beginDirectTransfer);
-  document.getElementById('downloadSavedQuotesBtn').addEventListener('click', downloadPackage);
   if (window.location.hash === '#move-saved-quotes') {
     document.getElementById('moveSavedQuotesBtn').focus();
-    setStatus('Choose Move saved quotes for a direct copy, or Download backup for a file you control.');
+    setStatus('Choose Move saved quotes to send them directly to the new site for your review.');
   }
 })();
 </script>

@@ -569,7 +569,7 @@
 <aside class="legacy-transition-banner" aria-label="Old version notice">
   <div class="legacy-transition-copy">
     <strong>Old version — your saved quotes are still available here.</strong>
-    Use the new Life Quote for new work. This old version will remain available during the transition period.
+    Use the new Life Quote for new work. Starting October 5, 2026, please use the new site exclusively.
   </div>
   <div class="legacy-transition-actions">
     <a class="legacy-primary" href="https://lifequote-d33.pages.dev/">Open new Life Quote</a>
@@ -4635,9 +4635,7 @@ handleSharedQuoteFromUrl();
 (() => {
   const TRANSFER_FORMAT = 'life-quote-transfer';
   const TRANSFER_VERSION = 1;
-  // Phase 1 uses the Cloudflare preview for this branch. Change only this
-  // origin after transfer.html has been approved for the production site.
-  const DESTINATION_ORIGIN = 'https://github-pages-transition.lifequote-d33.pages.dev';
+  const DESTINATION_ORIGIN = 'https://lifequote-d33.pages.dev';
   const DESTINATION_PATH = '/transfer.html';
   const NEW_BUSINESS_STORAGE_KEY = 'new-business-quote-history';
   const status = document.getElementById('legacyTransferStatus');

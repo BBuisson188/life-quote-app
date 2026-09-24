@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex,nofollow" />
+<title>Move saved quotes · Life Quote</title>
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-qq-32.png" />
+<style>
+  :root { --blue:#23457c; --blue2:#3167c8; --ink:#10203a; --muted:#607089; --line:#dbe5f1; --green:#166534; --red:#b91c1c; }
+  * { box-sizing:border-box; }
+  body { margin:0; min-height:100vh; padding:24px; color:var(--ink); background:#f4f7fb; font-family:Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+  main { width:min(720px, 100%); margin:40px auto; padding:clamp(24px, 5vw, 44px); border:1px solid var(--line); border-radius:22px; background:#fff; box-shadow:0 18px 45px rgba(15,23,42,.09); }
+  h1 { margin:0; font-size:clamp(28px, 5vw, 40px); letter-spacing:-.025em; }
+  .intro { color:#334155; line-height:1.6; }
+  .privacy { padding:13px 15px; border-radius:12px; background:#eff6ff; color:#284c78; font-size:13px; line-height:1.5; }
+  .status { margin-top:18px; padding:14px 16px; border:1px solid var(--line); border-radius:12px; background:#f8fafc; color:#475569; line-height:1.5; }
+  .status.error { border-color:#fecaca; background:#fff7f7; color:var(--red); }
+  .status.success { border-color:#bbf7d0; background:#f0fdf4; color:var(--green); }
+  .summary { display:none; margin-top:18px; padding:16px; border:1px solid var(--line); border-radius:14px; }
+  .summary.visible { display:block; }
+  .counts { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px; margin:12px 0 16px; }
+  .count { padding:12px; border-radius:10px; background:#f5f8fc; }
+  .count strong { display:block; font-size:24px; }
+  .count span { color:var(--muted); font-size:12px; }
+  button, .file-label, .home-link { min-height:42px; padding:10px 14px; border:1px solid #cbd8e8; border-radius:11px; background:#fff; color:var(--ink); font:inherit; font-size:14px; font-weight:800; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; }
+  button.primary { border-color:var(--blue); background:var(--blue); color:#fff; }
+  button:disabled { cursor:not-allowed; opacity:.5; }
+  .actions { display:flex; flex-wrap:wrap; gap:9px; margin-top:16px; }
+  input[type=file] { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
+  .footnote { margin-top:18px; color:var(--muted); font-size:12px; line-height:1.5; }
+  @media (max-width:560px) { body { padding:14px; } main { margin:10px auto; } .counts { grid-template-columns:1fr; } .actions > * { flex:1 1 100%; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Move saved quotes</h1>
+  <p class="intro">Copy quotes saved in your old browser storage into this new Life Quote site. You’ll review the counts before anything is imported.</p>
+  <div class="privacy"><strong>Private by design:</strong> the transfer happens inside your browser. No quote data is uploaded to a server. The old copies are not deleted.</div>
+  <div class="status" id="transferStatus" role="status" aria-live="polite">Waiting for saved quote data, or choose a backup file below.</div>
+  <section class="summary" id="transferSummary" aria-labelledby="summaryTitle">
+    <strong id="summaryTitle">Ready to import</strong>
+    <div class="counts">
+      <div class="count"><strong id="eotCount">0</strong><span>End-of-term quotes</span></div>
+      <div class="count"><strong id="newBusinessCount">0</strong><span>New-business quotes</span></div>
+    </div>
+    <button class="primary" id="confirmImportBtn" type="button">Import saved quotes</button>
+  </section>
+  <div class="actions">
+    <label class="file-label" for="backupFile">Choose backup file</label>
+    <input id="backupFile" type="file" accept=".lifequote,.json,application/json" />
+    <a class="home-link" href="index.html">Return to Life Quote</a>
+  </div>
+  <p class="footnote">A backup can contain names and birth dates. Only choose a file you created from the old Life Quote site.</p>
+</main>
+<script>
+(() => {
+  const TRANSFER_FORMAT = 'life-quote-transfer';
+  const TRANSFER_VERSION = 1;
+  const END_OF_TERM_STORAGE_KEY = 'life-quote-history';
+  const NEW_BUSINESS_STORAGE_KEY = 'new-business-quote-history';
+  const ALLOWED_SOURCE_ORIGIN = 'https://bbuisson188.github.io';
+  const MAX_PACKAGE_CHARACTERS = 4_000_000;
+  const MAX_RECORDS_PER_COLLECTION = 500;
+  const status = document.getElementById('transferStatus');
+  const summary = document.getElementById('transferSummary');
+  const confirmButton = document.getElementById('confirmImportBtn');
+  let pendingPackage = null;
+
+  function setStatus(message, kind = '') {
+    status.textContent = message;
+    status.className = `status${kind ? ` ${kind}` : ''}`;
+  }
+
+  function parseStoredArray(key) {
+    try {
+      const value = JSON.parse(localStorage.getItem(key) || '[]');
+      return Array.isArray(value) ? value : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function isRecord(value) {
+    return value && typeof value === 'object' && !Array.isArray(value);
+  }
+
+  function validatePackage(value) {
+    if (!isRecord(value) || value.format !== TRANSFER_FORMAT || value.version !== TRANSFER_VERSION) {
+      throw new Error('This is not a supported Life Quote backup.');
+    }
+    const endOfTerm = value.collections?.endOfTerm;
+    const newBusiness = value.collections?.newBusiness;
+    if (!Array.isArray(endOfTerm) || !Array.isArray(newBusiness)) {
+      throw new Error('The backup is missing one or more saved-quote collections.');
+    }
+    if (endOfTerm.length > MAX_RECORDS_PER_COLLECTION || newBusiness.length > MAX_RECORDS_PER_COLLECTION) {
+      throw new Error('The backup contains more records than this importer can safely review.');
+    }
+    if (!endOfTerm.every(isRecord) || !newBusiness.every(isRecord)) {
+      throw new Error('The backup contains an invalid saved-quote record.');
+    }
+    if (JSON.stringify(value).length > MAX_PACKAGE_CHARACTERS) {
+      throw new Error('The backup is too large to import safely.');
+    }
+    return value;
+  }
+
+  function stagePackage(value) {
+    pendingPackage = validatePackage(value);
+    document.getElementById('eotCount').textContent = pendingPackage.collections.endOfTerm.length;
+    document.getElementById('newBusinessCount').textContent = pendingPackage.collections.newBusiness.length;
+    summary.classList.add('visible');
+    setStatus('Saved quote data received. Review the counts, then confirm the import.');
+  }
+
+  function recordIdentity(record) {
+    return record.id ? `id:${record.id}` : `json:${JSON.stringify(record)}`;
+  }
+
+  function recordTime(record) {
+    return Date.parse(record?.savedAt || '') || 0;
+  }
+
+  function mergeRecords(existing, incoming) {
+    const merged = [...existing];
+    const positions = new Map(merged.map((record, index) => [recordIdentity(record), index]));
+    let added = 0;
+    let updated = 0;
+    let unchanged = 0;
+    incoming.forEach(record => {
+      const identity = recordIdentity(record);
+      const position = positions.get(identity);
+      if (position === undefined) {
+        positions.set(identity, merged.length);
+        merged.push(record);
+        added += 1;
+        return;
+      }
+      const current = merged[position];
+      if (JSON.stringify(current) === JSON.stringify(record)) {
+        unchanged += 1;
+      } else if (recordTime(record) > recordTime(current)) {
+        merged[position] = record;
+        updated += 1;
+      } else {
+        unchanged += 1;
+      }
+    });
+    merged.sort((a, b) => recordTime(b) - recordTime(a));
+    return { records:merged, added, updated, unchanged };
+  }
+
+  function restoreStorage(key, oldValue) {
+    if (oldValue === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, oldValue);
+  }
+
+  function importPendingPackage() {
+    if (!pendingPackage) return;
+    confirmButton.disabled = true;
+    const oldEndOfTerm = localStorage.getItem(END_OF_TERM_STORAGE_KEY);
+    const oldNewBusiness = localStorage.getItem(NEW_BUSINESS_STORAGE_KEY);
+    try {
+      const endOfTerm = mergeRecords(parseStoredArray(END_OF_TERM_STORAGE_KEY), pendingPackage.collections.endOfTerm);
+      const newBusiness = mergeRecords(parseStoredArray(NEW_BUSINESS_STORAGE_KEY), pendingPackage.collections.newBusiness);
+      localStorage.setItem(END_OF_TERM_STORAGE_KEY, JSON.stringify(endOfTerm.records));
+      localStorage.setItem(NEW_BUSINESS_STORAGE_KEY, JSON.stringify(newBusiness.records));
+      const changed = endOfTerm.added + endOfTerm.updated + newBusiness.added + newBusiness.updated;
+      setStatus(`Import complete. ${changed} saved quote${changed === 1 ? '' : 's'} added or updated. The old-site copies were not deleted.`, 'success');
+      summary.classList.remove('visible');
+      pendingPackage = null;
+    } catch {
+      try {
+        restoreStorage(END_OF_TERM_STORAGE_KEY, oldEndOfTerm);
+        restoreStorage(NEW_BUSINESS_STORAGE_KEY, oldNewBusiness);
+      } catch {
+        // Preserve the original error message even if storage rollback is blocked.
+      }
+      setStatus('The import could not be completed. No intentional changes were kept; try the backup again after checking browser storage permissions.', 'error');
+    } finally {
+      confirmButton.disabled = false;
+    }
+  }
+
+  async function handleBackupFile(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      if (file.size > MAX_PACKAGE_CHARACTERS) throw new Error('The selected backup is too large.');
+      stagePackage(JSON.parse(await file.text()));
+    } catch (error) {
+      summary.classList.remove('visible');
+      pendingPackage = null;
+      setStatus(error?.message || 'The selected backup could not be read.', 'error');
+    } finally {
+      event.target.value = '';
+    }
+  }
+
+  function transferNonce() {
+    const match = window.location.hash.match(/^#transfer=([^&]+)$/);
+    return match ? decodeURIComponent(match[1]) : '';
+  }
+
+  const nonce = transferNonce();
+  if (nonce && window.opener) {
+    window.opener.postMessage({ type:'life-quote-transfer-ready', nonce }, ALLOWED_SOURCE_ORIGIN);
+    setStatus('Connected to the old Life Quote site. Waiting for saved quote data…');
+  }
+
+  window.addEventListener('message', event => {
+    if (event.origin !== ALLOWED_SOURCE_ORIGIN || event.source !== window.opener) return;
+    if (event.data?.type !== 'life-quote-transfer-package' || !nonce || event.data?.nonce !== nonce) return;
+    try {
+      stagePackage(event.data.payload);
+      window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
+    } catch (error) {
+      setStatus(error?.message || 'The transferred data could not be validated.', 'error');
+    }
+  });
+
+  confirmButton.addEventListener('click', importPendingPackage);
+  document.getElementById('backupFile').addEventListener('change', handleBackupFile);
+})();
+</script>
+</body>
+</html>

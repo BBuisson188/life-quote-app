@@ -9,7 +9,7 @@ The main goal is to keep the project **simple, stable, and easy to hand off**. D
 ## Core operating rules
 
 1. **Read the entire HTML file before changing anything.** This project is small enough that understanding the full file is practical and important.
-2. **Keep the existing page boundaries.** Do not split embedded CSS/JavaScript into frameworks or additional support files unless the user specifically requests it. The approved pages are `index.html`, `new-quote.html`, and `projection.html`.
+2. **Keep the existing page boundaries.** Do not split embedded CSS/JavaScript into frameworks or additional support files unless the user specifically requests it. The approved pages are `index.html`, `new-quote.html`, `projection.html`, `legacy.html`, `transition-preview.html`, and `transfer.html`.
 3. **Prefer minimal edits over rewrites.** Preserve working behavior and patch the actual logic that needs to change.
 4. **Do not do speculative cleanup.** Avoid reorganizing large sections just because it seems cleaner.
 5. **Protect existing quote behavior.** A small UI tweak can easily break premium logic, rider logic, or warning logic.
@@ -28,10 +28,56 @@ The main goal is to keep the project **simple, stable, and easy to hand off**. D
 
 ## Project structure
 
-* `index.html` is the end-of-term quote page and the source of truth for end-of-term inputs, rate tables, quote calculations, validations, saved drafts, and projection-data generation.
+* `index.html` is the end-of-term quote page and the source of truth for end-of-term inputs, rate tables, quote calculations, validations, saved drafts, and projection-data generation. On the GitHub Pages hostname only, its early hostname check redirects the root landing visit to `transition-preview.html`; on Cloudflare it continues to render the quote app normally.
 * `new-quote.html` is the separate new-business quote page.
 * `projection.html` is the full-page year-by-year presentation opened from `index.html`. It reads a projection snapshot from `sessionStorage`; it is not a standalone quote calculator.
+* `transition-preview.html` is the current public GitHub transition landing experience. Keep this internal filename even though the page is no longer presented to users as a preview.
+* `legacy.html` is the old GitHub-hosted quote app used to retrieve previously saved GitHub-origin drafts during the transition.
+* `transfer.html` is the Cloudflare-hosted receiving and confirmation page for moving browser-local saved quotes.
 * Each HTML page keeps its own CSS and JavaScript embedded. Preserve this simple structure unless the user requests a broader redesign.
+
+## Hosting transition and saved-data transfer
+
+The app is currently in **phase two** of its GitHub-to-Cloudflare transition.
+
+### Live site roles
+
+* Old/public entry address: `https://bbuisson188.github.io/life-quote-app/`
+* New quote app: `https://lifequote-d33.pages.dev/`
+* The GitHub root now redirects in the browser to `transition-preview.html`, which displays the `Life Quote has moved` choices.
+* The Cloudflare root must continue to display the full quote app from `index.html`.
+* Both hosts publish from this repository. Do **not** replace `index.html` with the transition-page markup: doing that would also replace the Cloudflare quote app. Preserve the hostname-specific redirect near the top of `index.html`.
+* The old GitHub app remains available at `legacy.html` for users who need to view or finish previously saved work.
+* The public transition date is **October 5, 2026**. If that date changes, update both the transition landing page and the old-site banner.
+* Phase three, including any automatic redirect behavior after the transition period, has not been implemented yet.
+
+### Saved-quote move behavior
+
+Saved quotes are browser-local and origin-scoped. They are not tied to a Cloudflare login, and visiting the new hostname cannot directly read storage created under the GitHub hostname.
+
+* End-of-term drafts use the local-storage key `life-quote-history`.
+* New-business drafts use `new-business-quote-history`.
+* The GitHub transition page and `legacy.html` can read the old data because they run on the GitHub origin.
+* Clicking `Move saved quotes to the new site` opens a fresh Cloudflare `transfer.html` window and uses an exact-origin, one-time-nonce `postMessage` handshake to send both saved-quote collections directly inside the browser.
+* The receiver shows the end-of-term and new-business counts before the user confirms the move.
+* The confirmation button is intentionally labeled `Move saved quotes to the new site`; do not change it back to import-oriented wording.
+* There is intentionally no backup download or backup-file upload UI.
+* No quote data is uploaded to or retained by a server during this transfer.
+* The operation technically copies/merges the records into Cloudflare-origin local storage. Existing records are matched by ID, a newer `savedAt` version wins, and storage is rolled back if writing either collection fails.
+* Old GitHub-origin copies are deliberately not deleted. User-facing wording calls the action a move for clarity, but the retained old copy is an important safety feature.
+* Open a fresh transfer window for each attempt. Reusing a fixed named window can leave a stale opener and break the secure source-window check.
+
+### Transition verification checklist
+
+After changing the landing or transfer flow, test the published sites rather than relying only on local files:
+
+1. The normal GitHub root opens `Life Quote has moved`.
+2. `Open the Old Site` reaches `legacy.html` and its saved GitHub-origin drafts.
+3. The landing-page move button opens Cloudflare `transfer.html` directly, without an unnecessary stop on the old site.
+4. The receiver displays counts for both quote collections and uses the approved move wording.
+5. After confirmation, transferred end-of-term and new-business drafts appear on the Cloudflare pages.
+6. The old GitHub copies remain available.
+7. The Cloudflare root still opens the full quote app rather than the transition page.
 
 ## Business logic notes gathered from prior work
 

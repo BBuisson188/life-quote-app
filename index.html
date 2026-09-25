@@ -2367,6 +2367,18 @@ function getSpecialBand(totalCoverage) {
   return current;
 }
 
+function pricingBandLabel(line, calc) {
+  if (!line.product) return '—';
+  if (line.product === 'IBR' || line.product === 'CST-95'
+      || (line.product === 'Other' && line.manualRateMode !== 'banded')) return 'Not Banded';
+  if (!Number.isFinite(calc.baseRate) || !Number.isFinite(calc.bandCoverage)) return '—';
+
+  const special = PRODUCT_META[line.product]?.band_lookup === 3;
+  const bands = special ? SPECIAL_BANDS : STANDARD_BANDS;
+  const band = special ? getSpecialBand(calc.bandCoverage) : bands[getStandardBandOffset(calc.bandCoverage)];
+  return band.min === 0 ? `Under $${bands[1].min}k` : `$${band.min}k`;
+}
+
 function getEffectiveRateClass(line, insuredCoverage) {
   const product = line.product;
   const selected = (line.rateClass || '').toLowerCase();
@@ -3633,6 +3645,10 @@ function renderCoverageSection(containerId, side) {
             <div class="quote-breakdown-item">
               <div class="quote-breakdown-k">Cost per $1,000</div>
               <div class="quote-breakdown-v mono">${formatDetailRate(calc.baseRate)}</div>
+            </div>
+            <div class="quote-breakdown-item">
+              <div class="quote-breakdown-k">Pricing Band</div>
+              <div class="quote-breakdown-v mono">${pricingBandLabel(line, calc)}</div>
             </div>
             <div class="quote-breakdown-item">
               <div class="quote-breakdown-k">Insurance age</div>

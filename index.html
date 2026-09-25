@@ -3482,6 +3482,7 @@ function renderCoverageSection(containerId, side) {
     const otherBanded = line.product === 'Other' && line.manualRateMode === 'banded';
     const showWpManual = manualVisible && state.includeWaiver === 'Yes';
     const showManualPolicyFee = side === 'primary' && index === 0 && line.product === 'Other';
+    const showPolicyFeeDetails = side === 'primary' && index === 0;
     const effectiveClassLabel = calc.effectiveClass ? rateClassLabel(calc.effectiveClass) : '—';
     const subsequentLine = isSubsequentProduct(line.product);
     const automatedIbrLine = line.product === 'C4-IBR' || line.product === 'C5-IBR';
@@ -3666,7 +3667,7 @@ function renderCoverageSection(containerId, side) {
               <div class="quote-breakdown-k">Waiver annual</div>
               <div class="quote-breakdown-v mono">${money(calc.annualWp)}</div>
             </div>` : ''}
-            <div class="quote-breakdown-item">
+            ${showPolicyFeeDetails ? `<div class="quote-breakdown-item">
               <div class="quote-breakdown-k">Policy fee</div>
               <div class="quote-breakdown-v mono">${money(calc.feeApplied || 0)}</div>
             </div>
@@ -3677,7 +3678,10 @@ function renderCoverageSection(containerId, side) {
             <div class="quote-breakdown-item">
               <div class="quote-breakdown-k">Annual with fee</div>
               <div class="quote-breakdown-v mono">${money(calc.annualTotal)}</div>
-            </div>
+            </div>` : `<div class="quote-breakdown-item">
+              <div class="quote-breakdown-k">Annual premium</div>
+              <div class="quote-breakdown-v mono">${money(calc.annualTotal)}</div>
+            </div>`}
           </div>
         </details>
       </div>

@@ -3655,12 +3655,12 @@ function renderCoverageSection(containerId, side) {
               <div class="quote-breakdown-v mono">${calc.age ?? '—'}</div>
             </div>
             <div class="quote-breakdown-item">
-              <div class="quote-breakdown-k">Effective class</div>
-              <div class="quote-breakdown-v">${effectiveClassLabel}</div>
+              <div class="quote-breakdown-k">Approx. Age Change</div>
+              <div class="quote-breakdown-v mono">${insuranceBirthdayLabel(side === 'primary' ? state.primaryDob : state.spouseDob)}</div>
             </div>
             <div class="quote-breakdown-item">
-              <div class="quote-breakdown-k">Insurance birthday</div>
-              <div class="quote-breakdown-v mono">${insuranceBirthdayLabel(side === 'primary' ? state.primaryDob : state.spouseDob)}</div>
+              <div class="quote-breakdown-k">Effective class</div>
+              <div class="quote-breakdown-v">${effectiveClassLabel}</div>
             </div>
             ${state.includeWaiver === 'Yes' ? `<div class="quote-breakdown-item">
               <div class="quote-breakdown-k">Waiver annual</div>

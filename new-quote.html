@@ -2,6 +2,31 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
+<script>
+(() => {
+  if (window.location.hostname !== 'bbuisson188.github.io') return;
+    // Only remove this app's data; GitHub Pages storage is shared with other repos.
+    try {
+      for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+        const key = localStorage.key(index);
+        if (/^(?:life-quote-history(?:-v\d+|-migrated-v\d+)?|new-business-quote-history(?:-v\d+)?)$/i.test(key || '')) {
+          localStorage.removeItem(key);
+        }
+      }
+    } catch (error) {
+      console.warn('Old Life Quote saved data could not be cleared.', error);
+    }
+    try {
+      sessionStorage.removeItem('life-quote-year-projection');
+    } catch (error) {
+      console.warn('Old Life Quote projection could not be cleared.', error);
+    }
+  const destination = new URL('/new-quote.html', 'https://lifequote-d33.pages.dev');
+  destination.search = window.location.search;
+  if (window.location.hash.startsWith('#share=')) destination.hash = window.location.hash;
+  window.location.replace(destination.href);
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>New Business Life Quote</title>
 <meta name="theme-color" content="#23457c" />
@@ -1502,6 +1527,8 @@
     root.querySelectorAll('[data-delete-quote]').forEach(button => button.onclick = () => deleteSavedQuote(button.dataset.deleteQuote));
   }
 
+  // Do not initialize the retired GitHub app before navigation.
+  if (window.location.hostname !== 'bbuisson188.github.io') {
   document.querySelectorAll('.insured-card').forEach(card => initializeInsured(card, card.dataset.insured));
   document.getElementById('addSpouse').addEventListener('click', () => {
     spouseIncluded = true;
@@ -1528,6 +1555,7 @@
   renderSavedQuotes();
   updateSnapshot();
   handleSharedQuoteFromUrl();
+  }
 </script>
 </body>
 </html>

@@ -28,56 +28,50 @@ The main goal is to keep the project **simple, stable, and easy to hand off**. D
 
 ## Project structure
 
-* `index.html` is the end-of-term quote page and the source of truth for end-of-term inputs, rate tables, quote calculations, validations, saved drafts, and projection-data generation. On the GitHub Pages hostname only, its early hostname check redirects the root landing visit to `transition-preview.html`; on Cloudflare it continues to render the quote app normally.
-* `new-quote.html` is the separate new-business quote page.
+* `index.html` is the end-of-term quote page and the source of truth for end-of-term inputs, rate tables, quote calculations, validations, saved drafts, and projection-data generation. On GitHub Pages only, its early hostname check clears retired app storage and immediately redirects to the Cloudflare root; on Cloudflare it renders the quote app normally.
+* `new-quote.html` is the separate new-business quote page. On GitHub Pages it clears retired app storage and immediately redirects to the Cloudflare new-business page.
 * `projection.html` is the full-page year-by-year presentation opened from `index.html`. It reads a projection snapshot from `sessionStorage`; it is not a standalone quote calculator.
-* `transition-preview.html` is the current public GitHub transition landing experience. Keep this internal filename even though the page is no longer presented to users as a preview.
-* `legacy.html` is the old GitHub-hosted quote app used to retrieve previously saved GitHub-origin drafts during the transition.
-* `transfer.html` is the Cloudflare-hosted receiving and confirmation page for moving browser-local saved quotes.
+* `transition-preview.html`, `legacy.html`, and `transfer.html` are retired-page redirect shells. Keep these filenames so existing bookmarks work. They clear app storage only on GitHub Pages, then immediately redirect to the Cloudflare root on either host.
 * Each HTML page keeps its own CSS and JavaScript embedded. Preserve this simple structure unless the user requests a broader redesign.
 
-## Hosting transition and saved-data transfer
+## Phase-three hosting migration
 
-The app is currently in **phase two** of its GitHub-to-Cloudflare transition.
+Phase three begins **October 5, 2026**. Cloudflare is the active quote site; GitHub Pages remains enabled to redirect old addresses.
 
 ### Live site roles
 
 * Old/public entry address: `https://bbuisson188.github.io/life-quote-app/`
 * New quote app: `https://lifequote-d33.pages.dev/`
-* The GitHub root now redirects in the browser to `transition-preview.html`, which displays the `Life Quote has moved` choices.
+* The GitHub root redirects immediately to the Cloudflare root, with no countdown or old-site choice.
 * The Cloudflare root must continue to display the full quote app from `index.html`.
-* Both hosts publish from this repository. Do **not** replace `index.html` with the transition-page markup: doing that would also replace the Cloudflare quote app. Preserve the hostname-specific redirect near the top of `index.html`.
-* The old GitHub app remains available at `legacy.html` for users who need to view or finish previously saved work.
-* The public transition date is **October 5, 2026**. If that date changes, update both the transition landing page and the old-site banner.
-* Phase three, including any automatic redirect behavior after the transition period, has not been implemented yet.
+* Both hosts publish from this repository. Do **not** replace `index.html` or `new-quote.html` with redirect-only markup: that would replace the Cloudflare calculators too. Preserve their hostname-specific redirects and startup guards.
+* GitHub `new-quote.html` redirects to Cloudflare `/new-quote.html`. GitHub `projection.html` redirects to the Cloudflare root because its old session snapshot is retired.
+* Retired landing, legacy, and transfer pages redirect to the Cloudflare root on either host.
+* Query strings and `#share=` fragments survive redirects so end-of-term and new-business shared links reach the matching calculator. Obsolete move/transfer fragments are discarded.
 
-### Saved-quote move behavior
+### Retired browser-data deletion
 
-Saved quotes are browser-local and origin-scoped. They are not tied to a Cloudflare login, and visiting the new hostname cannot directly read storage created under the GitHub hostname.
+The user approved permanently deleting old GitHub-origin saved quotes rather than retaining a recovery or transfer flow. Deletion runs synchronously before redirecting, only when the hostname is `bbuisson188.github.io`.
 
-* End-of-term drafts use the local-storage key `life-quote-history`.
-* New-business drafts use `new-business-quote-history`.
-* The GitHub transition page and `legacy.html` can read the old data because they run on the GitHub origin.
-* Clicking `Move saved quotes to the new site` opens a fresh Cloudflare `transfer.html` window and uses an exact-origin, one-time-nonce `postMessage` handshake to send both saved-quote collections directly inside the browser.
-* The receiver shows the end-of-term and new-business counts before the user confirms the move.
-* The confirmation button is intentionally labeled `Move saved quotes to the new site`; do not change it back to import-oriented wording.
-* There is intentionally no backup download or backup-file upload UI.
-* No quote data is uploaded to or retained by a server during this transfer.
-* The operation technically copies/merges the records into Cloudflare-origin local storage. Existing records are matched by ID, a newer `savedAt` version wins, and storage is rolled back if writing either collection fails.
-* Old GitHub-origin copies are deliberately not deleted. User-facing wording calls the action a move for clarity, but the retained old copy is an important safety feature.
-* Open a fresh transfer window for each attempt. Reusing a fixed named window can leave a stale opener and break the secure source-window check.
+* Delete local-storage keys matching `life-quote-history`, `life-quote-history-vN`, `life-quote-history-migrated-vN`, `new-business-quote-history`, and `new-business-quote-history-vN` (case-insensitive; N is digits).
+* Delete the session-storage projection snapshot `life-quote-year-projection`.
+* Never use `localStorage.clear()` or `sessionStorage.clear()`: GitHub storage shares an origin with other repositories, and unrelated keys must survive.
+* Cloudflare saved quotes and projection data are unaffected.
+* Cleanup happens only in the browser visiting an updated old page. Browsers that never return, cached older pages, or browsers blocking storage access cannot be remotely cleared.
+* Storage errors are logged and do not prevent immediate navigation. Old calculators do not initialize during redirect, preventing their save-history migration from recreating storage.
+* The old quote app, move controls, and transfer handshake are retired. No old saved data is copied or uploaded.
 
-### Transition verification checklist
+### Phase-three verification checklist
 
 After changing the landing or transfer flow, test the published sites rather than relying only on local files:
 
-1. The normal GitHub root opens `Life Quote has moved`.
-2. `Open the Old Site` reaches `legacy.html` and its saved GitHub-origin drafts.
-3. The landing-page move button opens Cloudflare `transfer.html` directly, without an unnecessary stop on the old site.
-4. The receiver displays counts for both quote collections and uses the approved move wording.
-5. After confirmation, transferred end-of-term and new-business drafts appear on the Cloudflare pages.
-6. The old GitHub copies remain available.
-7. The Cloudflare root still opens the full quote app rather than the transition page.
+1. GitHub root/index, transition, legacy, transfer, and projection addresses redirect immediately to the Cloudflare root.
+2. GitHub new-business bookmarks redirect immediately to Cloudflare `new-quote.html`.
+3. Both types of shared-quote fragments and query strings survive redirects.
+4. Using synthetic quotes, verify current/older app storage and the session projection are removed before navigation, while unrelated storage survives.
+5. Cleanup does not recreate the old history/migration keys; blocked storage still allows redirect.
+6. Cloudflare end-of-term/new-business calculators still render, save/load, and receive shared quotes, with existing Cloudflare data preserved.
+7. Retired pages on Cloudflare redirect home without clearing Cloudflare storage.
 
 ## Business logic notes gathered from prior work
 

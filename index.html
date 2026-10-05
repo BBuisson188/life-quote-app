@@ -3,9 +3,29 @@
 <head>
 <meta charset="utf-8" />
 <script>
-  if (window.location.hostname === 'bbuisson188.github.io') {
-    window.location.replace(new URL('transition-preview.html', window.location.href));
-  }
+(() => {
+  if (window.location.hostname !== 'bbuisson188.github.io') return;
+    // Only remove this app's data; GitHub Pages storage is shared with other repos.
+    try {
+      for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+        const key = localStorage.key(index);
+        if (/^(?:life-quote-history(?:-v\d+|-migrated-v\d+)?|new-business-quote-history(?:-v\d+)?)$/i.test(key || '')) {
+          localStorage.removeItem(key);
+        }
+      }
+    } catch (error) {
+      console.warn('Old Life Quote saved data could not be cleared.', error);
+    }
+    try {
+      sessionStorage.removeItem('life-quote-year-projection');
+    } catch (error) {
+      console.warn('Old Life Quote projection could not be cleared.', error);
+    }
+  const destination = new URL('/', 'https://lifequote-d33.pages.dev');
+  destination.search = window.location.search;
+  if (window.location.hash.startsWith('#share=')) destination.hash = window.location.hash;
+  window.location.replace(destination.href);
+})();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Life Quote Workflow</title>
@@ -4590,6 +4610,8 @@ function rerender() {
   updateSummary();
 }
 
+// Do not initialize the retired GitHub app or recreate storage before navigation.
+if (window.location.hostname !== 'bbuisson188.github.io') {
 document.getElementById('saveQuoteBtn').onclick = saveCurrentQuote;
 document.getElementById('clearFormBtn').onclick = clearForm;
 document.getElementById('crmCopyBtn').onclick = copyCrmSummary;
@@ -4603,6 +4625,7 @@ document.addEventListener('keydown', handleQuoteTabOrder);
 footer();
 clearForm();
 handleSharedQuoteFromUrl();
+}
 </script>
 </body>
 </html>

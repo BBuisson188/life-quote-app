@@ -245,7 +245,7 @@ C5-IBR follows the same practical entry and calculation pattern as automated C4-
 
 * Enter the current accumulated C5-IBR coverage and the actual number of accepted increases, from 1 through 10. It is available as a rider line, not a base policy.
 * Divide current accumulated coverage evenly across the accepted increases. Increases 1 through 4 use the C5-20 rate at issue insurance age; increases 5 through 10 use the C5-20 rate at insurance age on each corresponding anniversary. Increase 5 occurs five years after the original anniversary.
-* C5-IBR inherits its band from that insured's enabled regular C5 coverage, including C5-25. Do not include C5-IBR in its own band or in combined banding for other products.
+* All automated IBR products (C4-IBR, C5-IBR, C6-IBR, and T.Now-IBR) use combined enabled non-IBR policy coverage across products and both insureds for banding. All IBR coverage is excluded from that total. CST-95 remains included pending verification of any exclusion rule. Preferred eligibility is still evaluated separately for each insured.
 * PP, P, N, and T are available according to the C5-20 table and existing per-insured preferred eligibility. No policy fee or discount applies.
 * Waiver is not approved on the automated C5-IBR path. Block it and direct the user to manual IBR when waiver must be included.
 * C5-IBR is not independently projected on the year-by-year page, matching current C4-IBR behavior.
@@ -317,7 +317,7 @@ For C4-IBR:
 * Increases 1 through 4 use the C4-20 rate at issue insurance age.
 * Increases 5 through 10 use the C4-20 rate at insurance age on each corresponding anniversary. Increase number 5 occurs five years after the original anniversary date.
 * Divide the current accumulated IBR coverage evenly across the accepted increases for premium calculation.
-* C4-IBR inherits its band from that insured's regular C4 coverage. Do not add C4-IBR coverage to its own band or to the banding for other products.
+* C4-IBR uses combined enabled non-IBR policy coverage across products and both insureds for banding, like the other automated IBR products. Do not add any IBR coverage to its own band or to the banding for other products. CST-95 remains included pending verification.
 * No policy fee or discount is applied to C4-IBR.
 * Waiver is not approved for automated C4-IBR. If waiver is selected, block the C4-IBR line and direct the user to manual IBR when waiver must be included.
 

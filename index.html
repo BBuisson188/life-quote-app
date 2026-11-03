@@ -692,7 +692,7 @@
     </div>
     <div class="panel-body">
       <div class="result-grid">
-        <div><div class="result-k">Version</div><div class="result-v" id="metaVersion">1.56</div></div>
+        <div><div class="result-k">Version</div><div class="result-v" id="metaVersion">1.57</div></div>
         <div><div class="result-k">Quote status</div><div class="result-v" id="metaCalcStatus">Live quote</div></div>
         <div><div class="result-k">Primary lines</div><div class="result-v" id="metaPrimary">1 line</div></div>
         <div><div class="result-k">Spouse lines</div><div class="result-v" id="metaSpouse">Off</div></div>
@@ -706,7 +706,7 @@
 
 <script>
 const APP = Object.freeze({
-  VERSION: '1.56',
+  VERSION: '1.57',
   VERSION_DATE: '2026-11-03',
   TITLE_BASE: 'Life Quote Workflow'
 });
@@ -2134,13 +2134,6 @@ function isAutomatedIbr(product) {
   return IBR_PRODUCTS.has(product) && product !== 'IBR';
 }
 
-function inheritedIbrCoverage(product, side) {
-  const family = product === 'C4-IBR' ? C4_PRODUCTS : product === 'C5-IBR' ? C5_PRODUCTS
-    : product === 'C6-IBR' ? C6_PRODUCTS : TNOW_PRODUCTS;
-  return state[side].filter(line => line.enabled && family.has(line.product))
-    .reduce((sum, line) => sum + (numericAmount(line.amount) || 0), 0);
-}
-
 function isSubsequentProduct(product) {
   return isC4Product(product) || (C5_PRODUCTS.has(product) && product !== 'C5-25') || isVersionedTermProduct(product);
 }
@@ -2539,7 +2532,7 @@ function computeLine(line, side, index, totalCoverage, insuredCoverage, c4Covera
       result.ibrIssue = 'increases';
       return result;
     }
-    const inheritedCoverage = inheritedIbrCoverage(product, side);
+    const inheritedCoverage = totalCoverage;
     if (!(inheritedCoverage > 0)) {
       result.ibrIssue = 'band';
       return result;
@@ -3934,9 +3927,9 @@ function renderDiagnostics() {
       } else if (!Number.isInteger(increaseCount) || increaseCount < 1 || increaseCount > 10) {
         items.push({ cls: 'err', title: `${label}: increases must be 1 through 10`, note: 'Use the actual whole number of increases that occurred before they stopped.' });
       }
-      const inheritedCoverage = inheritedIbrCoverage(line.product, side);
+      const inheritedCoverage = calc.totalCoverage;
       if (inheritedCoverage <= 0) {
-        items.push({ cls: 'err', title: `${label}: regular ${productFamily} coverage needed for banding`, note: `Add the insured's existing ${productFamily} coverage so ${line.product} can inherit its rate band.` });
+        items.push({ cls: 'err', title: `${label}: policy coverage needed for banding`, note: 'Add enabled policy coverage other than IBR so the rider can use the combined policy rate band.' });
       }
       if (['base','rating','age'].includes(lineCalc.ibrIssue)) {
         const reason = lineCalc.ibrIssue === 'base' ? 'IBR must be entered as a rider, not a base plan.'

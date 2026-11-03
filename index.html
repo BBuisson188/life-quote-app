@@ -692,7 +692,7 @@
     </div>
     <div class="panel-body">
       <div class="result-grid">
-        <div><div class="result-k">Version</div><div class="result-v" id="metaVersion">0.11</div></div>
+        <div><div class="result-k">Version</div><div class="result-v" id="metaVersion">1.56</div></div>
         <div><div class="result-k">Quote status</div><div class="result-v" id="metaCalcStatus">Live quote</div></div>
         <div><div class="result-k">Primary lines</div><div class="result-v" id="metaPrimary">1 line</div></div>
         <div><div class="result-k">Spouse lines</div><div class="result-v" id="metaSpouse">Off</div></div>
@@ -706,8 +706,8 @@
 
 <script>
 const APP = Object.freeze({
-  VERSION: '1.55',
-  VERSION_DATE: '2026-09-11',
+  VERSION: '1.56',
+  VERSION_DATE: '2026-11-03',
   TITLE_BASE: 'Life Quote Workflow'
 });
 const VERSION = APP.VERSION;
@@ -724,9 +724,11 @@ const C5_PRODUCTS = new Set(['C5-10','C5-15','C5-20','C5-25','C5-30','C5-35']);
 PRODUCT_OPTIONS.splice(PRODUCT_OPTIONS.indexOf('Cust Exch'), 0, ...C5_PRODUCTS, 'C5-IBR');
 const TNOW_PRODUCTS = new Set(['T.Now-10','T.Now-15','T.Now-20','T.Now-25','T.Now-30','T.Now-35']);
 const C6_PRODUCTS = new Set(['C6-10','C6-15','C6-20','C6-25','C6-30','C6-35']);
+PRODUCT_OPTIONS.splice(PRODUCT_OPTIONS.indexOf('C6-10'), 0, 'T.Now-IBR');
+PRODUCT_OPTIONS.splice(PRODUCT_OPTIONS.indexOf('CST-95'), 0, 'C6-IBR');
 const VERSIONED_TERM_PRODUCTS = new Set([...TNOW_PRODUCTS, ...C6_PRODUCTS]);
 const PROJECTION_PRODUCTS = new Set([...C4_PRODUCTS, ...C5_PRODUCTS, ...VERSIONED_TERM_PRODUCTS, 'Cust Exch']);
-const IBR_PRODUCTS = new Set(['C4-IBR','C5-IBR','IBR']);
+const IBR_PRODUCTS = new Set(['C4-IBR','C5-IBR','C6-IBR','T.Now-IBR','IBR']);
 const RATE_BASIS_OPTIONS = ['original','subsequent'];
 const RATE_BASIS_LABELS = { original: 'Orig', subsequent: 'Subseq' };
 const MANUAL_PRODUCTS = new Set(['IBR','Other']);
@@ -2095,6 +2097,13 @@ function roundWorkbook(value) {
   return Math.round((Math.trunc(value * 1000) / 1000 + 0.004) * 100) / 100;
 }
 
+function tableRatedModalPremium(standardAnnualCoverage, fee, modalFactor, ratingFactor) {
+  // Round the standard modal coverage premium before applying a table rating.
+  // Keep the policy fee outside the rating; waiver is calculated separately.
+  const standardModal = roundWorkbook(roundWorkbook(standardAnnualCoverage) * modalFactor);
+  return roundWorkbook(standardModal * ratingFactor + roundWorkbook(fee * modalFactor));
+}
+
 function money(value) {
   return Number.isFinite(value) ? value.toLocaleString(undefined, { style: 'currency', currency: 'USD' }) : '—';
 }
@@ -2115,6 +2124,21 @@ function isC4Product(product) {
 
 function isVersionedTermProduct(product) {
   return VERSIONED_TERM_PRODUCTS.has(product);
+}
+
+function isVersionedIbr(product) {
+  return product === 'C6-IBR' || product === 'T.Now-IBR';
+}
+
+function isAutomatedIbr(product) {
+  return IBR_PRODUCTS.has(product) && product !== 'IBR';
+}
+
+function inheritedIbrCoverage(product, side) {
+  const family = product === 'C4-IBR' ? C4_PRODUCTS : product === 'C5-IBR' ? C5_PRODUCTS
+    : product === 'C6-IBR' ? C6_PRODUCTS : TNOW_PRODUCTS;
+  return state[side].filter(line => line.enabled && family.has(line.product))
+    .reduce((sum, line) => sum + (numericAmount(line.amount) || 0), 0);
 }
 
 function isSubsequentProduct(product) {
@@ -2264,7 +2288,7 @@ function normalizeLineForLoad(line) {
 }
 
 function inferredRateVersion(line) {
-  if (!isVersionedTermProduct(line.product) || line.rateBasis !== 'original') return null;
+  if (!(isVersionedTermProduct(line.product) || isVersionedIbr(line.product)) || line.rateBasis !== 'original') return null;
   const anniversary = parseDate(line.anniversary);
   if (!anniversary) return null;
   return anniversary < new Date(2015, 6, 1) ? 'v1' : 'v2';
@@ -2481,7 +2505,7 @@ function computeLine(line, side, index, totalCoverage, insuredCoverage, c4Covera
     ? PRODUCT_META['C4-20']
     : product === 'C5-IBR'
       ? PRODUCT_META['C5-20']
-      : PRODUCT_META[product];
+      : isVersionedIbr(product) ? PRODUCT_META[product.replace('IBR', '20')] : PRODUCT_META[product];
   if (!meta) {
     result.unsupported = true;
     return result;
@@ -2493,7 +2517,7 @@ function computeLine(line, side, index, totalCoverage, insuredCoverage, c4Covera
 
   let baseRate = null;
 
-  const automatedIbr = product === 'C4-IBR' || product === 'C5-IBR';
+  const automatedIbr = isAutomatedIbr(product);
   if (automatedIbr && includeWaiver === 'Yes') {
     result.wpUnavailable = true;
     result.wpUnavailableMessage = `Waiver is not available for automated ${product} quotes. Use manual IBR when waiver must be included.`;
@@ -2506,12 +2530,16 @@ function computeLine(line, side, index, totalCoverage, insuredCoverage, c4Covera
   }
 
   if (automatedIbr) {
+    if (isVersionedIbr(product) && (index === 0 || age < 18 || age >= 56 || result.ratingFactor !== 1)) {
+      result.ibrIssue = index === 0 ? 'base' : result.ratingFactor !== 1 ? 'rating' : 'age';
+      return result;
+    }
     const increaseCount = Number(line.ibrIncreases);
     if (!Number.isInteger(increaseCount) || increaseCount < 1 || increaseCount > 10) {
       result.ibrIssue = 'increases';
       return result;
     }
-    const inheritedCoverage = product === 'C5-IBR' ? totalC5Coverage(side) : c4Coverage;
+    const inheritedCoverage = inheritedIbrCoverage(product, side);
     if (!(inheritedCoverage > 0)) {
       result.ibrIssue = 'band';
       return result;
@@ -2522,10 +2550,18 @@ function computeLine(line, side, index, totalCoverage, insuredCoverage, c4Covera
     const increaseAmount = amount / increaseCount;
     const rates = [];
     for (let increaseNumber = 1; increaseNumber <= increaseCount; increaseNumber++) {
-      const rateAge = increaseNumber <= 4
+      // PLA-165 p. 52: first increase is policy year 2 (offset 1).
+      // First two C6/TermNow increases use issue age; third uses offset 3.
+      const issueAgeIncreases = isVersionedIbr(product) ? 2 : 4;
+      const rateAge = increaseNumber <= issueAgeIncreases
         ? age
         : insuranceAgeAtDate(dob, addYears(originalAnniv, increaseNumber));
-      const increaseRate = product === 'C5-IBR'
+      const increaseRate = isVersionedIbr(product)
+        ? computeLine({ ...line, product:product.replace('IBR', '20'), amount:'1', ratingTable:'',
+            rateBasis:'original', anniversary:projectionDateValue(increaseNumber <= 2 ? originalAnniv : addYears(originalAnniv, increaseNumber)) },
+            side, 1, inheritedCoverage, insuredCoverage, c4Coverage,
+            { includeWaiver:'No', rateVersion:result.rateVersion }).baseRate
+        : product === 'C5-IBR'
         ? getC520Rate(rateAge, effectiveClass, inheritedCoverage)
         : getC420Rate(rateAge, effectiveClass, inheritedCoverage);
       if (!Number.isFinite(increaseRate)) {
@@ -2535,7 +2571,8 @@ function computeLine(line, side, index, totalCoverage, insuredCoverage, c4Covera
       rates.push(increaseRate);
     }
 
-    const ratedAnnual = rates.reduce((sum, rate) => sum + rate * increaseAmount, 0) * result.ratingFactor;
+    const standardAnnual = rates.reduce((sum, rate) => sum + rate * increaseAmount, 0);
+    const ratedAnnual = standardAnnual * result.ratingFactor;
     result.ibrIncreaseCount = increaseCount;
     result.ibrIncreaseAmount = increaseAmount;
     result.baseRate = (rates.reduce((sum, rate) => sum + rate, 0) / rates.length) * result.ratingFactor;
@@ -2544,7 +2581,9 @@ function computeLine(line, side, index, totalCoverage, insuredCoverage, c4Covera
     result.annualWithoutFee = result.annualBase;
     result.annualTotal = result.annualBase;
     result.bandCoverage = inheritedCoverage;
-    result.modalBase = roundWorkbook(result.annualBase * factor);
+    result.modalBase = result.ratingFactor === 1
+      ? roundWorkbook(result.annualBase * factor)
+      : tableRatedModalPremium(standardAnnual, 0, factor, result.ratingFactor);
     result.modalTotal = result.modalBase;
     return result;
   } else if (C5_PRODUCTS.has(product)) {
@@ -2628,7 +2667,9 @@ function computeLine(line, side, index, totalCoverage, insuredCoverage, c4Covera
   result.baseRate = ratedBaseRate;
   result.annualCoverage = roundWorkbook(rawAnnualCoverage);
   result.annualBase = roundWorkbook(rawAnnualCoverage + fee);
-  result.modalBase = roundWorkbook(result.annualBase * factor);
+  result.modalBase = result.ratingFactor === 1
+    ? roundWorkbook(result.annualBase * factor)
+    : tableRatedModalPremium(baseRate * amount, fee, factor, result.ratingFactor);
 
   if (includeWaiver === 'Yes') {
     let wpRate = null;
@@ -3048,7 +3089,9 @@ function buildC525Projection(entry, baseCells, range, coverageTotals) {
       // binary half-cent errors (for example 27.06 × .75 must round to 20.30).
       const ratePerOriginalUnit = Math.round(Math.round(rate * 100) * Math.round(benefitFactor * 100) / 100) / 100;
       annualCoverage = roundWorkbook(ratePerOriginalUnit * initial.ratingFactor * entry.amount);
-      premium = roundWorkbook((annualCoverage + initial.feeApplied) * modalFactor);
+      premium = initial.ratingFactor === 1
+        ? roundWorkbook((annualCoverage + initial.feeApplied) * modalFactor)
+        : tableRatedModalPremium(ratePerOriginalUnit * entry.amount, initial.feeApplied, modalFactor, initial.ratingFactor);
       waiverOmitted = includeWp;
     }
     cells.set(year, {
@@ -3311,7 +3354,9 @@ function buildCustExchArtProjection(entry, baseCells, range, coverageTotals) {
     }
     const annualCoverage = roundWorkbook(rate * ratingFactor * entry.amount);
     const annualTotal = roundWorkbook(annualCoverage + annualFee);
-    const premium = roundWorkbook(annualTotal * modalFactor);
+    const premium = ratingFactor === 1
+      ? roundWorkbook(annualTotal * modalFactor)
+      : tableRatedModalPremium(rate * entry.amount, annualFee, modalFactor, ratingFactor);
     const wpAge = primaryDob ? insuranceAgeAtDate(primaryDob, anniversary) : null;
     const waiverOmitted = state.includeWaiver === 'Yes' && Number.isFinite(wpAge) && wpAge < 60;
     cells.set(year, {
@@ -3505,7 +3550,7 @@ function renderCoverageSection(containerId, side) {
     const showPolicyFeeDetails = side === 'primary' && index === 0;
     const effectiveClassLabel = calc.effectiveClass ? rateClassLabel(calc.effectiveClass) : '—';
     const subsequentLine = isSubsequentProduct(line.product);
-    const automatedIbrLine = line.product === 'C4-IBR' || line.product === 'C5-IBR';
+    const automatedIbrLine = isAutomatedIbr(line.product);
     const rateBasis = line.rateBasis || 'original';
     const annivLabel = automatedIbrLine || line.product === 'C5-25' ? 'Orig anniv' : subsequentLine ? (rateBasis === 'subsequent' ? 'New anniv' : 'Orig anniv') : 'Anniv date';
     const levelNote = calc.levelUntil ? ` - Level until ${escapeHtml(calc.levelUntil)}` : '';
@@ -3514,10 +3559,10 @@ function renderCoverageSection(containerId, side) {
     const effectiveClassNote = effectiveClass && selectedClass && effectiveClass !== selectedClass ? ` - Effective class ${escapeHtml(rateClassLabel(effectiveClass))}` : '';
     const insuredCoverage = side === 'primary' ? current.primaryCoverage : current.spouseCoverage;
     const c4Coverage = side === 'primary' ? totalC4Coverage('primary') : totalC4Coverage('spouse');
-    const version1Calc = isVersionedTermProduct(line.product)
+    const version1Calc = (isVersionedTermProduct(line.product) || isVersionedIbr(line.product))
       ? computeLine(line, side, index, current.totalCoverage, insuredCoverage, c4Coverage, { rateVersion:'v1' })
       : null;
-    const version2Calc = isVersionedTermProduct(line.product)
+    const version2Calc = (isVersionedTermProduct(line.product) || isVersionedIbr(line.product))
       ? computeLine(line, side, index, current.totalCoverage, insuredCoverage, c4Coverage, { rateVersion:'v2' })
       : null;
     const showVersionButton = versionedQuoteCalculationsDiffer(version1Calc, version2Calc);
@@ -3557,6 +3602,7 @@ function renderCoverageSection(containerId, side) {
             </select>
           </div>` : ''}
           ${canAddNext ? `<button class="ghost-btn" data-action="add-next" data-side="${side}" data-index="${index}">Add next rider</button>` : ''}
+          ${side === 'primary' && index === 0 && lines.slice(1).some(rider => rider.enabled) ? `<button class="danger-btn" type="button" data-action="remove-line" data-side="primary" data-index="0" ${IBR_PRODUCTS.has(lines.slice(1).find(rider => rider.enabled)?.product) ? 'disabled title="The first rider is IBR and cannot become a base plan."' : 'title="Remove the base plan and promote the first rider; the policy fee will be recalculated."'}>Remove Base</button>` : ''}
           ${index > 0 ? `<button class="danger-btn" data-action="remove-line" data-side="${side}" data-index="${index}">Remove</button>` : ''}
         </div>
       </div>
@@ -3565,7 +3611,7 @@ function renderCoverageSection(containerId, side) {
           <label>Product</label>
           <select data-field="product" data-side="${side}" data-index="${index}">
             <option value="">Select product</option>
-            ${PRODUCT_OPTIONS.map(p => `<option value="${p}" ${line.product === p ? 'selected' : ''}>${p}</option>`).join('')}
+            ${PRODUCT_OPTIONS.filter(p => index > 0 || !isVersionedIbr(p)).map(p => `<option value="${p}" ${line.product === p ? 'selected' : ''}>${p}</option>`).join('')}
           </select>
         </div>
         <div>
@@ -3631,7 +3677,7 @@ function renderCoverageSection(containerId, side) {
               <input data-field="manualBand500Plus" data-side="${side}" data-index="${index}" type="text" value="${escapeHtml(line.manualBand500Plus)}" placeholder="Rate" />
             </div>
           </div>
-          <div class="hint">Band selected from combined policy coverage, excluding IBR, C4-IBR, and C5-IBR.</div>
+          <div class="hint">Band selected from combined policy coverage, excluding all IBR coverage.</div>
         ` : `<div class="hint">Cost per thousand appears for IBR and Other. Manual policy fee appears only when the primary base plan product is Other.</div>`}
       </div>
       <div class="result-box line-result">
@@ -3880,31 +3926,37 @@ function renderDiagnostics() {
     if (MANUAL_PRODUCTS.has(line.product) && state.includeWaiver === 'Yes' && !line.manualWpCost) {
       items.push({ cls: 'err', title: `${label}: waiver cost per thousand needed`, note: 'Because waiver of premium is turned on for this manual-rate product.' });
     }
-    if (line.product === 'C4-IBR' || line.product === 'C5-IBR') {
-      const productFamily = line.product === 'C5-IBR' ? 'C5' : 'C4';
+    if (isAutomatedIbr(line.product)) {
+      const productFamily = line.product.replace('-IBR', '');
       const increaseCount = Number(line.ibrIncreases);
       if (!line.ibrIncreases) {
         items.push({ cls: 'err', title: `${label}: number of increases needed`, note: 'Enter how many increases were actually accepted, from 1 through 10.' });
       } else if (!Number.isInteger(increaseCount) || increaseCount < 1 || increaseCount > 10) {
         items.push({ cls: 'err', title: `${label}: increases must be 1 through 10`, note: 'Use the actual whole number of increases that occurred before they stopped.' });
       }
-      const inheritedCoverage = productFamily === 'C5' ? totalC5Coverage(side) : totalC4Coverage(side);
+      const inheritedCoverage = inheritedIbrCoverage(line.product, side);
       if (inheritedCoverage <= 0) {
         items.push({ cls: 'err', title: `${label}: regular ${productFamily} coverage needed for banding`, note: `Add the insured's existing ${productFamily} coverage so ${line.product} can inherit its rate band.` });
+      }
+      if (['base','rating','age'].includes(lineCalc.ibrIssue)) {
+        const reason = lineCalc.ibrIssue === 'base' ? 'IBR must be entered as a rider, not a base plan.'
+          : lineCalc.ibrIssue === 'rating' ? 'C6/TermNow IBR is issued on non-rated coverage. Remove the table rating or use manual IBR for a verified exception.'
+          : 'C6/TermNow IBR requires an original issue insurance age from 18 through 55.';
+        items.push({ cls:'err', title:`${label}: ${line.product} not eligible`, note:reason });
       }
       if (lineCalc.ibrIssue === 'rate') {
         items.push({ cls: 'err', title: `${label}: ${productFamily}-20 rate unavailable`, note: `A required issue-age or attained-age ${productFamily}-20 rate was not available for this quote.` });
       }
     }
     if (lineCalc.wpUnavailable) {
-      const automatedIbrWaiver = line.product === 'C4-IBR' || line.product === 'C5-IBR';
+      const automatedIbrWaiver = isAutomatedIbr(line.product);
       items.push({
         cls: 'err',
         title: `${label}: waiver not available for ${automatedIbrWaiver ? line.product : 'subsequent rates'}`,
         note: lineCalc.wpUnavailableMessage || 'Turn off waiver of premium or switch this line back to original anniversary rates.'
       });
     }
-    if (line.product && !['C4-IBR','C5-IBR'].includes(line.product) && amount !== null && lineCalc.age !== null && !lineCalc.unsupported && !lineCalc.wpUnavailable && lineCalc.baseRate === null && !MANUAL_PRODUCTS.has(line.product)) {
+    if (line.product && !isAutomatedIbr(line.product) && amount !== null && lineCalc.age !== null && !lineCalc.unsupported && !lineCalc.wpUnavailable && lineCalc.baseRate === null && !MANUAL_PRODUCTS.has(line.product)) {
       items.push({ cls: 'err', title: `${label}: product not available at this age / band / class`, note: 'The extracted rate lookup did not return a valid rate.' });
     }
     if (state.includeWaiver === 'Yes' && line.product && amount !== null && lineCalc.baseRate !== null && lineCalc.wpRate === null && !lineCalc.wpUnavailable) {
@@ -4095,7 +4147,21 @@ function addNextRider(side, index) {
 
 function removeLine(side, index) {
   const lines = state[side];
-  if (index <= 0 || index >= lines.length) return;
+  if (index < 0 || index >= lines.length) return;
+
+  if (index === 0) {
+    const riders = lines.slice(1).filter(line => line.enabled);
+    // IBR is rider-only and cannot take over as the policy's base plan.
+    if (side !== 'primary' || !riders.length || IBR_PRODUCTS.has(riders[0].product)) return;
+    for (let i = 0; i < lines.length; i++) {
+      lines[i] = riders[i]
+        ? { ...riders[i], type: COVERAGE_TYPES[i], enabled: true }
+        : makeLine(COVERAGE_TYPES[i]);
+    }
+    premiumBreakdownExpanded = false;
+    rerender();
+    return;
+  }
 
   const remainingRiders = lines
     .slice(1)
@@ -4175,7 +4241,7 @@ function getQuoteTabItems() {
     state[side].forEach((line, index) => {
       if (!line.enabled) return;
       const fields = ['product', 'amount', 'rateClass', 'anniversary'];
-      if (line.product === 'C4-IBR' || line.product === 'C5-IBR') fields.push('ibrIncreases');
+      if (isAutomatedIbr(line.product)) fields.push('ibrIncreases');
       fields.forEach(field => {
         items.push({ field, side, index });
       });

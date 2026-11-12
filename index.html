@@ -424,6 +424,7 @@
   .result-main { display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap; }
   .result-premium { font-size:26px; font-weight:900; letter-spacing:-.04em; color:#163568; }
   .result-note { font-size:12px; color:#64748b; }
+  .line-premium-warning { color:var(--amber); font-weight:700; }
   .line-result .result-grid,
   .line-result .result-main > .result-note { display:none; }
   .quote-breakdown > summary {
@@ -508,6 +509,29 @@
   .quote-name { font-weight:800; font-size:15px; }
   .quote-meta { color:var(--muted); font-size:12px; margin-top:3px; }
   .quote-data { margin-top:8px; color:#334155; font-size:13px; line-height:1.5; }
+  .saved-options { margin-top:10px; padding-top:10px; border-top:1px solid var(--line); }
+  .saved-options > summary { cursor:pointer; font-size:13px; font-weight:800; color:var(--blue); }
+  .saved-option { padding:12px 0; border-bottom:1px solid var(--line); }
+  .saved-option:last-of-type { border-bottom:0; }
+  .saved-option-name { font-size:14px; font-weight:800; overflow-wrap:anywhere; }
+  .saved-option-copy { margin:4px 0 8px; color:var(--muted); font-size:12px; line-height:1.5; white-space:pre-line; }
+  .quote-item .saved-option .actions { flex-wrap:wrap; gap:5px; }
+  .saved-option .ghost-btn, .saved-option .danger-btn { padding:6px 8px; font-size:12px; }
+  .saved-option .icon-btn { width:30px; height:30px; }
+  .saved-option .is-editing { color:var(--blue2); }
+  .saved-options-copy { margin-top:10px; width:100%; font-size:12px; }
+  .single-quote-copy { margin-top:8px; padding:5px 8px; font-size:12px; }
+  .copy-quote-dialog { width:min(440px, calc(100% - 32px)); padding:22px; border:1px solid var(--line); border-radius:18px; background:var(--panel); color:var(--text); box-shadow:var(--shadow); }
+  .copy-quote-dialog::backdrop { background:rgba(15,23,42,.4); }
+  .copy-quote-dialog h2 { margin:0; font-size:18px; }
+  .copy-quote-dialog p { margin:12px 0 18px; font-size:14px; line-height:1.5; }
+  .copy-quote-dialog .actions { justify-content:flex-end; }
+  .quote-editing { margin-top:12px; font-size:12px; font-weight:800; color:var(--blue); overflow-wrap:anywhere; }
+  .option-name-field { margin-top:10px; }
+  .option-name-field label { font-size:11px; }
+  .option-name-field input { padding:8px 10px; font-size:13px; }
+  #quoteOptionStatus { margin-top:8px; font-size:12px; color:var(--muted); }
+  button:disabled { opacity:.45; cursor:default; }
   .footer-meta { margin-top:18px; text-align:center; color:var(--muted); font-size:12px; padding:14px 8px; }
   .hidden { display:none !important; }
   .mono { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
@@ -520,6 +544,7 @@
   @media (max-width: 760px) {
     .wrap { padding:14px; }
     .summary-grid, .input-grid, .row-grid, .result-grid, .dob-group { grid-template-columns:1fr; }
+    .row-grid.c4-ibr-grid { grid-template-columns:1fr; }
     .quote-breakdown-grid { grid-template-columns:repeat(2, minmax(0,1fr)); }
     .manual-band-grid { grid-template-columns:repeat(2, minmax(0,1fr)); }
   }
@@ -617,10 +642,17 @@
               </div>
             </div>
           </div>
+          <div class="quote-editing hidden" id="quoteEditingContext"></div>
+          <div class="option-name-field hidden" id="optionNameField">
+            <label for="optionName">Option name</label>
+            <input id="optionName" type="text" placeholder="Option 1" />
+          </div>
           <div class="actions" style="margin-top:14px;">
             <button class="solid-btn" id="saveQuoteBtn">Save quote</button>
+            <button class="ghost-btn hidden" id="saveNewOptionBtn" type="button">Save as New Option</button>
             <button class="ghost-btn" id="clearFormBtn">New quote</button>
           </div>
+          <div id="quoteOptionStatus" role="status" aria-live="polite"></div>
         </div>
       </div>
 
@@ -664,10 +696,17 @@
         <div class="panel-head">
           <div class="section-kicker">Saved work</div>
           <h2 class="panel-title">Saved quote drafts</h2>
-          <p class="panel-note">Stored in this browser on this device so you can return to earlier draft quotes quickly.</p>
+          <p class="panel-note">Saved in this browser for this site address. A local file, a local preview, and the online site each have separate saved quotes.</p>
         </div>
         <div class="panel-body">
           <div id="savedQuotes" class="quote-list"></div>
+          <div class="actions" style="margin-top:12px;">
+            <button class="ghost-btn" id="backupQuotesBtn" type="button">Back up quotes</button>
+            <button class="ghost-btn" id="importQuotesBtn" type="button">Import quotes</button>
+            <input id="importQuotesFile" class="hidden" type="file" accept=".json,application/json" aria-label="Import saved quote backup" />
+          </div>
+          <p class="hint hidden" id="localSavedQuotesNote"></p>
+          <div class="hint" id="quoteBackupStatus" role="status" aria-live="polite"></div>
         </div>
       </div>
     </div>
@@ -692,7 +731,7 @@
     </div>
     <div class="panel-body">
       <div class="result-grid">
-        <div><div class="result-k">Version</div><div class="result-v" id="metaVersion">1.57</div></div>
+        <div><div class="result-k">Version</div><div class="result-v" id="metaVersion">1.58</div></div>
         <div><div class="result-k">Quote status</div><div class="result-v" id="metaCalcStatus">Live quote</div></div>
         <div><div class="result-k">Primary lines</div><div class="result-v" id="metaPrimary">1 line</div></div>
         <div><div class="result-k">Spouse lines</div><div class="result-v" id="metaSpouse">Off</div></div>
@@ -704,10 +743,21 @@
 </div>
 
 
+<dialog id="copyQuoteChoice" class="copy-quote-dialog" aria-labelledby="copyQuoteChoiceTitle" aria-describedby="copyQuoteChoiceDescription">
+  <form method="dialog">
+    <h2 id="copyQuoteChoiceTitle">Which version would you like to copy?</h2>
+    <p id="copyQuoteChoiceDescription"></p>
+    <div class="actions">
+      <button class="ghost-btn" type="submit" value="cancel">Cancel</button>
+      <button class="ghost-btn" type="submit" value="saved">Copy saved</button>
+      <button class="solid-btn" type="submit" value="current">Copy displayed</button>
+    </div>
+  </form>
+</dialog>
 <script>
 const APP = Object.freeze({
-  VERSION: '1.57',
-  VERSION_DATE: '2026-11-03',
+  VERSION: '1.58',
+  VERSION_DATE: '2026-11-12',
   TITLE_BASE: 'Life Quote Workflow'
 });
 const VERSION = APP.VERSION;
@@ -1962,6 +2012,10 @@ const state = {
   spouse: [makeLine('Base Plan')]
 };
 let premiumBreakdownExpanded = false;
+let editingSavedOption = null;
+let expandedQuoteId = null;
+let editingOptionName = '';
+let savedQuotesRenderKey = '';
 
 function makeLine(type) {
   return {
@@ -2164,6 +2218,78 @@ function ageFromDates(dobValue, annivValue) {
 function insuranceAgeAtDate(dob, anniv) {
   if (!(dob instanceof Date) || !(anniv instanceof Date)) return null;
   return Math.round((anniv - dob) / (DAYS_PER_YEAR * 24 * 60 * 60 * 1000));
+}
+
+function actualAgeToday(dobValue, today = new Date()) {
+  const dob = parseDate(dobValue);
+  if (!dob || Number.isNaN(today.getTime()) || dob > today) return null;
+  let age = today.getFullYear() - dob.getFullYear();
+  if (today.getMonth() < dob.getMonth()
+    || (today.getMonth() === dob.getMonth() && today.getDate() < dob.getDate())) age -= 1;
+  return age;
+}
+
+function coverageAgeNote(line, side, calc) {
+  if (calc.age !== null && calc.age !== undefined) {
+    return isAutomatedIbr(line.product)
+      ? `Issue age ${calc.age}${calc.ibrIncreaseCount ? ` - ${calc.ibrIncreaseCount} increase${calc.ibrIncreaseCount === 1 ? '' : 's'}` : ''}`
+      : `Age ${calc.age}`;
+  }
+  const actualAge = !String(line.anniversary || '').trim()
+    ? actualAgeToday(side === 'primary' ? state.primaryDob : state.spouseDob) : null;
+  return actualAge !== null ? `Actual age ${actualAge}` : 'Age pending';
+}
+
+function linePremiumLabel(line, side, index, calc, totalCoverage) {
+  if (Number.isFinite(calc.modalTotal) && calc.modalTotal > 0) return `Live ${state.billingMode.toLowerCase()} premium`;
+  if (!String(line.anniversary || '').trim()) return 'Anniv date missing';
+  if (!parseDate(line.anniversary)) return 'Anniv date invalid';
+  const dob = side === 'primary' ? state.primaryDob : state.spouseDob;
+  if (!String(dob || '').trim()) return 'Birth date missing';
+  if (!parseDate(dob)) return 'Birth date invalid';
+  if (!line.product) return 'Product needed';
+  if (!String(line.amount || '').trim()) return 'Coverage needed';
+  const amount = numericAmount(line.amount);
+  if (amount === null) return 'Coverage invalid';
+  if (amount <= 0) return 'Coverage needed';
+  if (!getAllowedRateClasses(line.product).includes(String(line.rateClass || '').toUpperCase())) return 'Rate class needed';
+  if (isAutomatedIbr(line.product)) {
+    const increases = Number(line.ibrIncreases);
+    if (!String(line.ibrIncreases || '').trim()) return 'Increase count needed';
+    if (!Number.isInteger(increases) || increases < 1 || increases > 10) return 'Increases must be 1–10';
+  }
+  if (calc.wpUnavailable) return 'Waiver unavailable';
+  if (calc.ibrIssue === 'band') return 'Policy coverage needed';
+  if (calc.ibrIssue === 'rating') return 'Table rating unavailable for IBR';
+  if (calc.ibrIssue === 'base') return 'IBR must be a rider';
+  if (calc.ibrIssue === 'age') return 'IBR unavailable at this issue age';
+  if (MANUAL_PRODUCTS.has(line.product)) {
+    const rate = line.product === 'Other' && line.manualRateMode === 'banded'
+      ? getOtherBandedRate(line, totalCoverage) : numericAmount(line.manualCost);
+    if (rate === null) return 'Manual rate needed';
+    if (side === 'primary' && index === 0 && line.product === 'Other' && !String(line.manualPolicyFee || '').trim()) return 'Policy fee needed';
+  }
+  return 'Rate unavailable';
+}
+
+function updateDisplayedAges() {
+  const current = calculations();
+  document.querySelectorAll('[data-age-side]').forEach(element => {
+    const side = element.dataset.ageSide;
+    const index = Number(element.dataset.ageIndex);
+    const line = state[side][index];
+    const calc = current.lines.find(entry => entry.side === side && entry.index === index)?.calc || {};
+    element.textContent = coverageAgeNote(line, side, calc);
+    const hasPremium = Number.isFinite(calc.modalTotal) && calc.modalTotal > 0;
+    const label = element.parentElement.querySelector('[data-line-status]');
+    label.textContent = linePremiumLabel(line, side, index, calc, current.totalCoverage);
+    label.classList.toggle('line-premium-warning', !hasPremium);
+    const selected = String(line.rateClass || '').toUpperCase();
+    const effective = String(calc.effectiveClass || '').toUpperCase();
+    element.parentElement.querySelector('[data-line-extra]').textContent = hasPremium
+      ? `${effective && selected && effective !== selected ? ` - Effective class ${rateClassLabel(effective)}` : ''}${calc.levelUntil ? ` - Level until ${calc.levelUntil}` : ''}` : '';
+    element.closest('.line-result').querySelector('.result-premium').textContent = money(calc.modalTotal || 0);
+  });
 }
 
 function ordinalDay(day) {
@@ -3561,11 +3687,8 @@ function renderCoverageSection(containerId, side) {
     const showVersionButton = versionedQuoteCalculationsDiffer(version1Calc, version2Calc);
     const usingVersion2 = line.rateVersion === 'v2';
     const showPrimaryCopyButton = side === 'spouse' && primaryLineReadyToCopy(index);
-    const ageNote = calc.age !== null && calc.age !== undefined
-      ? automatedIbrLine
-        ? `Issue age ${calc.age}${calc.ibrIncreaseCount ? ` - ${calc.ibrIncreaseCount} increase${calc.ibrIncreaseCount === 1 ? '' : 's'}` : ''}`
-        : `Age ${calc.age}`
-      : 'Age pending';
+    const ageNote = coverageAgeNote(line, side, calc);
+    const hasPremium = Number.isFinite(calc.modalTotal) && calc.modalTotal > 0;
     const card = document.createElement('div');
     card.className = 'row-card';
     card.innerHTML = `
@@ -3694,7 +3817,7 @@ function renderCoverageSection(containerId, side) {
         </div>
         <div class="result-main">
           <div>
-            <div class="result-note">Live ${state.billingMode.toLowerCase()} premium - ${ageNote}${effectiveClassNote}${levelNote}</div>
+            <div class="result-note"><span data-line-status class="${hasPremium ? '' : 'line-premium-warning'}">${linePremiumLabel(line, side, index, calc, current.totalCoverage)}</span> - <span data-age-side="${side}" data-age-index="${index}">${ageNote}</span><span data-line-extra>${hasPremium ? effectiveClassNote + levelNote : ''}</span></div>
             <div class="result-premium mono">${money(calc.modalTotal || 0)}</div>
           </div>
           <div class="result-note">Base ${money(calc.modalBase || 0)}${calc.modalWp ? ` • WP ${money(calc.modalWp)}` : ''}${calc.feeApplied ? ` • Fee included ${money(calc.feeApplied)} annual` : ''}</div>
@@ -4092,7 +4215,9 @@ function bindHeaderInputs() {
     const isSelect = el.tagName === 'SELECT';
     const inputHandler = () => {
       state[key] = el.value;
+      if (key === 'quoteName') renderOptionEditor();
       if (key === 'primaryDob' || key === 'spouseDob') {
+        updateDisplayedAges();
         updateDobEmphasis();
         renderDiagnostics();
         updateSummary();
@@ -4100,7 +4225,8 @@ function bindHeaderInputs() {
     };
     const changeHandler = () => {
       state[key] = el.value;
-      rerender();
+      if (key === 'quoteName') renderOptionEditor();
+      else rerender();
     };
     el.oninput = isSelect ? null : inputHandler;
     el.onchange = changeHandler;
@@ -4175,6 +4301,7 @@ function bindDynamicInputs() {
     const isSelect = el.tagName === 'SELECT';
     const inputHandler = () => {
       line[field] = el.value;
+      updateDisplayedAges();
       updateSummary();
       renderDiagnostics();
     };
@@ -4428,11 +4555,14 @@ async function copyShareLink(link) {
   return false;
 }
 
-async function shareSavedQuote(id) {
-  const item = loadSavedQuotes().find(quote => quote.id === id);
+async function shareSavedQuote(id, optionId = null) {
+  const item = loadSavedQuotes().find(quote => sameSavedId(quote.id, id));
   if (!item) return;
+  const options = getSavedOptions(item);
+  const option = optionId == null ? options[0] : options.find(entry => sameSavedId(entry.id, optionId));
+  if (!option) return;
   try {
-    const encoded = await encodeSharedQuote(sharedQuotePayload(item));
+    const encoded = await encodeSharedQuote(sharedQuotePayload(option.snapshot));
     const url = new URL(window.location.href);
     url.hash = `share=${encoded}`;
     const copied = await copyShareLink(url.toString());
@@ -4456,6 +4586,9 @@ async function handleSharedQuoteFromUrl() {
     clearShareHash();
     if (!accepted) return;
 
+    editingSavedOption = null;
+    editingOptionName = '';
+    setQuoteOptionStatus('Shared quote loaded. Save it to keep a local copy.');
     const primary = expandSharedLines(payload.p);
     const spouse = payload.s && Array.isArray(payload.q)
       ? expandSharedLines(payload.q)
@@ -4545,58 +4678,363 @@ function saveSavedQuotes(items) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
 }
 
-function saveCurrentQuote() {
-  const items = loadSavedQuotes();
-  const quoteName = state.quoteName.trim();
-  const existingIndex = quoteName
-    ? items.findIndex(item => String(item.quoteName || '').trim() === quoteName)
-    : -1;
+function sameSavedId(first, second) {
+  return first !== null && first !== undefined && second !== null && second !== undefined && String(first) === String(second);
+}
 
-  const existingId = existingIndex >= 0 ? items[existingIndex].id : null;
-  const payload = savedQuotePayload(existingId);
-  if (existingIndex >= 0) items.splice(existingIndex, 1);
-  items.unshift(payload);
-  saveSavedQuotes(items);
+function backupSavedQuotes() {
+  const status = document.getElementById('quoteBackupStatus');
+  try {
+    // Read all recognized history keys without rewriting any original records.
+    const groups = [];
+    for (let index = 0; index < localStorage.length; index++) {
+      const key = localStorage.key(index);
+      if (/^life-quote-history(?:-v\d+)?$/i.test(key || '')) groups.push(parseSavedQuotesValue(localStorage.getItem(key)));
+    }
+    const items = mergeSavedQuotes(...groups);
+    if (!items.length) { status.textContent = 'No saved quotes at this address to back up. Open the address or local file where you saved them.'; return; }
+    const url = URL.createObjectURL(new Blob([JSON.stringify(items, null, 2)], { type:'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'life-quote-saved-quotes.json';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    status.textContent = `${items.length} saved quote${items.length === 1 ? '' : 's'} backed up. Original records are unchanged. The file contains the saved quote inputs; keep it private.`;
+  } catch { status.textContent = 'Could not read the saved quotes. Browser storage may be unavailable.'; }
+}
+
+function importSavedQuotesJson(text) {
+  const parsed = JSON.parse(text);
+  const incoming = Array.isArray(parsed) ? parsed : parsed?.quotes;
+  const validSnapshot = item => item && typeof item === 'object' && Array.isArray(item.primary);
+  if (!Array.isArray(incoming) || !incoming.every(item => validSnapshot(item)
+    && ['string','number'].includes(typeof item.id) && String(item.id).trim()
+    && (item.options === undefined || (Array.isArray(item.options) && item.options.every(option => option && option.id !== undefined && validSnapshot(option.snapshot)))))) {
+    throw new Error('Choose an end-of-term saved quote backup. No records were imported.');
+  }
+  const existing = loadSavedQuotes();
+  // Existing IDs win, including local options edited since the backup was made.
+  const imported = incoming.filter(item => !existing.some(current => sameSavedId(current.id, item.id)));
+  const merged = mergeSavedQuotes(existing, imported);
+  const added = merged.length - existing.length;
+  if (added) saveSavedQuotes(merged);
+  return { added, total:merged.length };
+}
+
+async function importSavedQuotesFile(file) {
+  if (!file) return;
+  const status = document.getElementById('quoteBackupStatus');
+  try {
+    const result = importSavedQuotesJson(await file.text());
+    renderSavedQuotes();
+    renderOptionEditor();
+    status.textContent = `${result.added} quote${result.added === 1 ? '' : 's'} added; ${result.total} saved here. Existing quotes and options were not replaced.`;
+  } catch (error) {
+    status.textContent = error instanceof SyntaxError ? 'This is not a valid quote backup. No records were imported.' : `Import failed. ${error.message}`;
+  } finally { document.getElementById('importQuotesFile').value = ''; }
+}
+
+function getSavedOptions(item) {
+  if (Array.isArray(item.options) && item.options.length) return item.options;
+  // Read old drafts as Option 1 without rewriting browser storage on load.
+  const { options, ...snapshot } = item;
+  return [{ id:`${item.id}-original`, name:'', snapshot }];
+}
+
+function savedOptionLabel(option, index) {
+  return String(option.name || '').trim() || `Option ${index + 1}`;
+}
+
+function quoteStateFromSnapshot(snapshot, quoteName = snapshot.quoteName || '') {
+  const lines = side => COVERAGE_TYPES.map((type, index) => {
+    const line = { ...makeLine(type), ...(snapshot[side]?.[index] || {}), type };
+    normalizeLineForLoad(line);
+    return line;
+  });
+  return {
+    quoteName,
+    billingMode: MODAL_FACTORS[snapshot.billingMode] ? snapshot.billingMode : 'Annual',
+    includeSpouse: snapshot.includeSpouse || 'No',
+    includeWaiver: snapshot.includeWaiver || 'No',
+    includeChild: snapshot.includeChild || 'No',
+    primaryDob: snapshot.primaryDob || '',
+    spouseDob: snapshot.spouseDob || '',
+    childCoverage: snapshot.childCoverage || '10',
+    primary: lines('primary'),
+    spouse: lines('spouse')
+  };
+}
+
+function evaluateSavedOption(snapshot) {
+  const previous = { ...state };
+  try {
+    Object.assign(state, quoteStateFromSnapshot(snapshot));
+    applyAutomaticRateVersionDefaults();
+    const calc = calculations();
+    const issue = crmExportIssue(calc);
+    const coverage = ['primary', 'spouse'].filter(side => side === 'primary' || state.includeSpouse === 'Yes')
+      .map(side => {
+        const role = side === 'primary' ? 'Primary' : 'Spouse';
+        const lines = calc.lines.filter(entry => entry.side === side);
+        const total = lines.reduce((sum, entry) => sum + (numericAmount(entry.line.amount) || 0), 0);
+        const products = lines.map(entry => `${entry.line.product || 'Product needed'} ${wholeCoverageMoney(numericAmount(entry.line.amount) || 0)}${entry.calc.modalWp > 0 ? ' (WP)' : ''}`).join('; ');
+        return { role, amount:total, products };
+      });
+    if (state.includeChild === 'Yes') coverage.push({ role:'Child Rider', amount:numericAmount(state.childCoverage) || 0, products:calc.childWp > 0 ? 'Waiver included' : '' });
+    return { issue, coverage, premium:calc.totalModal, billingMode:state.billingMode,
+      waiverIncluded:calc.lines.some(entry => entry.calc.modalWp > 0) || calc.childWp > 0 };
+  } finally {
+    // Calculating a saved option must never replace the quote being edited.
+    Object.assign(state, previous);
+  }
+}
+
+function setQuoteOptionStatus(message) {
+  document.getElementById('quoteOptionStatus').textContent = message;
+}
+
+function matchingSavedClient(items = loadSavedQuotes()) {
+  const name = state.quoteName.trim();
+  return name ? items.find(item => String(item.quoteName || '').trim() === name) : null;
+}
+
+function renderOptionEditor() {
+  const savedClients = loadSavedQuotes();
+  const client = matchingSavedClient(savedClients);
+  const options = client ? getSavedOptions(client) : [];
+  const index = editingSavedOption?.clientId === client?.id
+    ? options.findIndex(option => option.id === editingSavedOption.optionId) : -1;
+  const active = index >= 0;
+  const multiple = options.length > 1;
+  const context = document.getElementById('quoteEditingContext');
+  context.classList.toggle('hidden', !client);
+  context.textContent = active
+    ? `Editing: ${client.quoteName || 'Unnamed quote'}${multiple ? ` — ${savedOptionLabel(options[index], index)}` : ''}`
+    : client ? `Saved client: ${client.quoteName} — load an option to edit, or save a new option.` : '';
+  document.getElementById('saveQuoteBtn').textContent = active ? 'Save Changes' : 'Save quote';
+  document.getElementById('saveQuoteBtn').disabled = Boolean(client && !active && options.length > 1);
+  document.getElementById('saveNewOptionBtn').classList.toggle('hidden', !client);
+  document.getElementById('optionNameField').classList.toggle('hidden', !active || !multiple);
+  const input = document.getElementById('optionName');
+  if (input.value !== editingOptionName) input.value = editingOptionName;
+  document.querySelectorAll('[data-copy-options]').forEach(button => {
+    const workingClient = savedClients.find(item => sameSavedId(item.id, button.dataset.copyOptions));
+    button.classList.toggle('hidden', !workingClient || workingSavedOptionIndex(workingClient) < 0);
+  });
+}
+
+function saveCurrentQuote(asNewOption = false) {
+  const items = loadSavedQuotes();
+  const client = matchingSavedClient(items);
+  const options = client ? getSavedOptions(client) : [];
+  let optionIndex = editingSavedOption?.clientId === client?.id
+    ? options.findIndex(option => option.id === editingSavedOption.optionId) : -1;
+  if (!asNewOption && client && optionIndex < 0 && options.length > 1) {
+    setQuoteOptionStatus('Load the option you want to update, or use Save as New Option.');
+    return;
+  }
+  if (!asNewOption && optionIndex < 0 && options.length === 1) optionIndex = 0;
+  const payload = savedQuotePayload(client?.id);
+  if (asNewOption || optionIndex < 0) {
+    const optionId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+    options.push({ id:optionId, name:'', snapshot:payload });
+    optionIndex = options.length - 1;
+  } else {
+    const defaultName = `Option ${optionIndex + 1}`;
+    const enteredName = editingSavedOption?.optionId === options[optionIndex].id ? editingOptionName.trim() : options[optionIndex].name;
+    options[optionIndex] = { ...options[optionIndex], name:enteredName === defaultName ? '' : enteredName, snapshot:payload };
+  }
+  const record = { ...client, ...payload, options };
+  const updated = items.filter(item => item.id !== record.id);
+  updated.unshift(record);
+  try { saveSavedQuotes(updated); }
+  catch { setQuoteOptionStatus('Could not save. Browser storage may be full or unavailable. Your current entries are still here.'); return; }
+  editingSavedOption = { clientId:record.id, optionId:options[optionIndex].id };
+  editingOptionName = savedOptionLabel(options[optionIndex], optionIndex);
+  expandedQuoteId = record.id;
+  setQuoteOptionStatus(`${options.length > 1 ? editingOptionName : 'Quote'} saved under ${record.quoteName || 'Unnamed quote'}.`);
   rerender();
 }
 
-function loadQuote(id) {
-  const item = loadSavedQuotes().find(q => q.id === id);
+function loadQuote(id, optionId = null) {
+  const item = loadSavedQuotes().find(q => sameSavedId(q.id, id));
   if (!item) return;
-  Object.assign(state, {
-    quoteName: item.quoteName || '',
-    billingMode: item.billingMode || 'Annual',
-    includeSpouse: item.includeSpouse || 'No',
-    includeWaiver: item.includeWaiver || 'No',
-    includeChild: item.includeChild || 'No',
-    primaryDob: item.primaryDob || '',
-    spouseDob: item.spouseDob || '',
-    childCoverage: item.childCoverage || '10',
-    primary: item.primary || [makeLine('Base Plan')],
-    spouse: item.spouse || [makeLine('Base Plan')]
-  });
-  while (state.primary.length < 4) state.primary.push(makeLine(COVERAGE_TYPES[state.primary.length]));
-  state.primary.forEach(normalizeLineForLoad);
-  while (state.spouse.length < 4) state.spouse.push(makeLine(COVERAGE_TYPES[state.spouse.length]));
-  state.spouse.forEach(normalizeLineForLoad);
+  id = item.id;
+  const options = getSavedOptions(item);
+  const index = optionId == null ? 0 : options.findIndex(option => sameSavedId(option.id, optionId));
+  expandedQuoteId = id;
+  if (index < 0) { renderSavedQuotes(); return; }
+  Object.assign(state, quoteStateFromSnapshot(options[index].snapshot, item.quoteName || ''));
+  editingSavedOption = { clientId:id, optionId:options[index].id };
+  editingOptionName = savedOptionLabel(options[index], index);
+  setQuoteOptionStatus(`${options.length > 1 ? editingOptionName : 'Quote'} loaded into the calculator.`);
   premiumBreakdownExpanded = false;
   rerender();
 }
 
 function deleteQuote(id) {
-  saveSavedQuotes(loadSavedQuotes().filter(q => q.id !== id));
+  saveSavedQuotes(loadSavedQuotes().filter(q => !sameSavedId(q.id, id)));
+  if (sameSavedId(editingSavedOption?.clientId, id)) { editingSavedOption = null; editingOptionName = ''; }
+  if (sameSavedId(expandedQuoteId, id)) expandedQuoteId = null;
   rerender();
+}
+
+function changeSavedOption(clientId, optionId, action) {
+  const items = loadSavedQuotes();
+  const client = items.find(item => sameSavedId(item.id, clientId));
+  if (!client) return;
+  clientId = client.id;
+  const options = getSavedOptions(client);
+  const index = options.findIndex(option => option.id === optionId);
+  if (index < 0) return;
+  if (action === 'remove') {
+    if (options.length === 1) return;
+    options.splice(index, 1);
+  } else {
+    const next = index + (action === 'up' ? -1 : 1);
+    if (next < 0 || next >= options.length) return;
+    [options[index], options[next]] = [options[next], options[index]];
+  }
+  client.options = options;
+  // Keep the compatibility snapshot in sync with an option that still exists.
+  if (action === 'remove') Object.assign(client, options[0].snapshot, { id:clientId, quoteName:client.quoteName, options });
+  try { saveSavedQuotes(items); }
+  catch { setQuoteOptionStatus('Could not update saved options. Browser storage may be full or unavailable.'); return; }
+  if (editingSavedOption?.clientId === clientId) {
+    const activeIndex = options.findIndex(option => option.id === editingSavedOption.optionId);
+    if (activeIndex < 0) { editingSavedOption = null; editingOptionName = ''; }
+    else if (!editingOptionName.trim() || /^Option \d+$/.test(editingOptionName)) editingOptionName = savedOptionLabel(options[activeIndex], activeIndex);
+  }
+  setQuoteOptionStatus(action === 'remove' ? 'Saved option removed. The calculator entries are unchanged.' : 'Option order saved.');
+  renderSavedQuotes();
+  renderOptionEditor();
+}
+
+function buildClientQuoteSummary(client) {
+  const options = getSavedOptions(client);
+  const multiple = options.length > 1;
+  const frequencies = { Monthly:'per month', Annual:'per year', Quarterly:'every 3 months', 'Semi-Annual':'every 6 months' };
+  const sections = options.map((option, index) => {
+    const label = savedOptionLabel(option, index);
+    const result = evaluateSavedOption(option.snapshot);
+    if (result.issue) throw new Error(`${multiple ? label : 'Quote'}: ${result.issue}`);
+    const price = `${money(result.premium)} ${frequencies[result.billingMode]}`;
+    const lines = [...result.coverage.map(group => `${group.role === 'Primary' ? 'Primary coverage' : group.role === 'Spouse' ? 'Spouse coverage' : 'Child rider coverage'}: ${wholeCoverageMoney(group.amount)}`),
+      `${result.coverage.length > 1 ? 'Total premium' : 'Premium'}: ${price}`];
+    if (result.waiverIncluded) lines.push('Waiver of premium included.');
+    return [...(multiple ? [label] : []), ...lines].join('\n');
+  });
+  return [multiple ? 'Here are your life insurance options:' : 'Here is your life insurance quote:', ...sections,
+    multiple
+      ? "We can also look at coverage amounts between these examples. Let me know which option you prefer, or if you'd like a different coverage amount."
+      : "If you'd like to see a different coverage amount, just let me know."].join('\n\n');
+}
+
+function workingSavedOptionIndex(client) {
+  if (!sameSavedId(editingSavedOption?.clientId, client.id)
+    || String(client.quoteName || '').trim() !== state.quoteName.trim()) return -1;
+  return getSavedOptions(client).findIndex(option => sameSavedId(option.id, editingSavedOption.optionId));
+}
+
+function comparableQuoteInputs(snapshot) {
+  const input = quoteStateFromSnapshot(snapshot);
+  delete input.quoteName;
+  ['primaryDob','spouseDob'].forEach(field => { input[field] = normalizeDateInputValue(input[field]); });
+  ['primary','spouse'].forEach(side => input[side].forEach(line => {
+    line.anniversary = normalizeDateInputValue(line.anniversary);
+    if (!line.rateVersionManual) {
+      const version = inferredRateVersion(line);
+      if (version) line.rateVersion = version;
+    }
+    // This flag records how a class/version was selected, not a displayed input.
+    delete line.rateVersionManual;
+  }));
+  return JSON.stringify(input);
+}
+
+function chooseQuoteSummarySource(multiple) {
+  const dialog = document.getElementById('copyQuoteChoice');
+  if (dialog.open) return Promise.resolve(null);
+  document.getElementById('copyQuoteChoiceDescription').textContent = multiple
+    ? 'The option in the calculator has changes that have not been saved. Copy saved uses all saved options. Copy displayed uses your current changes for this option and the saved versions of the others. Neither choice saves your changes.'
+    : 'The quote in the calculator has changes that have not been saved. Copy the previously saved quote or what is currently displayed. Neither choice saves your changes.';
+  dialog.returnValue = 'cancel';
+  return new Promise(resolve => {
+    dialog.addEventListener('close', () => resolve(['saved','current'].includes(dialog.returnValue) ? dialog.returnValue : null), { once:true });
+    dialog.showModal();
+  });
+}
+
+async function copyClientQuoteSummary(id, button) {
+  const client = loadSavedQuotes().find(item => sameSavedId(item.id, id));
+  if (!client) return;
+  const optionIndex = workingSavedOptionIndex(client);
+  if (optionIndex < 0) { setQuoteOptionStatus('Load this quote before copying its summary.'); return; }
+  const options = getSavedOptions(client);
+  const multiple = options.length > 1;
+  const savedOption = options[optionIndex];
+  const currentSnapshot = quoteStateFromSnapshot(state, client.quoteName || '');
+  const defaultName = `Option ${optionIndex + 1}`;
+  const currentName = editingOptionName.trim() === defaultName ? '' : editingOptionName.trim();
+  const nameChanged = multiple && (currentName || defaultName) !== savedOptionLabel(savedOption, optionIndex);
+  let summaryClient = client;
+  if (nameChanged || comparableQuoteInputs(currentSnapshot) !== comparableQuoteInputs(savedOption.snapshot)) {
+    const choice = await chooseQuoteSummarySource(multiple);
+    if (!choice) return;
+    if (choice === 'current') summaryClient = { ...client, options:options.map((option, index) => index === optionIndex
+      ? { ...option, name:multiple ? currentName : option.name, snapshot:currentSnapshot } : option) };
+  }
+  let summary;
+  try { summary = buildClientQuoteSummary(summaryClient); }
+  catch (error) { window.alert(`Summary not copied. ${error.message} Load and complete ${getSavedOptions(client).length > 1 ? 'that option' : 'the quote'} first.`); return; }
+  try {
+    if (navigator.clipboard?.writeText && window.isSecureContext) {
+      await navigator.clipboard.writeText(summary);
+      if (button) { button.textContent = 'Copied'; setTimeout(() => { if (button.isConnected) button.textContent = 'Copy Quote Summary'; }, 1800); }
+      return;
+    }
+  } catch { /* Fall back to manually copying the complete summary. */ }
+  window.prompt('Copy Quote Summary:', summary);
 }
 
 function renderSavedQuotes() {
   const root = document.getElementById('savedQuotes');
   const items = loadSavedQuotes();
+  const renderKey = JSON.stringify([items, expandedQuoteId, editingSavedOption]);
+  // Keep saved-option buttons in place when a calculator input blurs.
+  if (renderKey === savedQuotesRenderKey) return;
+  savedQuotesRenderKey = renderKey;
   const reminderHtml = `<div class="saved-quotes-reminder"><strong>Privacy note:</strong> Do not include personal identifiable information. Avoid using full names with real birthdates when saving quotes.</div>`;
   if (!items.length) {
     root.innerHTML = `<div class="soft-box">No saved quote drafts yet.</div>${reminderHtml}`;
     return;
   }
   root.innerHTML = items.map(item => {
+    const options = getSavedOptions(item);
+    const multiple = options.length > 1;
+    const clientId = escapeHtml(item.id);
+    const expanded = multiple && expandedQuoteId === item.id;
+    const optionRows = expanded ? options.map((option, index) => {
+      let result;
+      try { result = evaluateSavedOption(option.snapshot); }
+      catch { result = { issue:'Saved inputs need attention.', coverage:[] }; }
+      const coverage = result.coverage.map(group => `${group.role}: ${wholeCoverageMoney(group.amount)}`).join(' · ');
+      const price = result.issue ? 'Premium unavailable — load to review' : `${money(result.premium)} ${result.billingMode.toLowerCase()}`;
+      const optionId = escapeHtml(option.id);
+      const label = escapeHtml(savedOptionLabel(option, index));
+      const active = editingSavedOption?.clientId === item.id && editingSavedOption?.optionId === option.id;
+      return `<div class="saved-option">
+        <div class="saved-option-name ${active ? 'is-editing' : ''}">${label}${active ? ' · In calculator' : ''}</div>
+        <div class="saved-option-copy">${escapeHtml(coverage)}\n${escapeHtml(price)}</div>
+        <div class="actions">
+          <button class="ghost-btn" type="button" data-load-id="${clientId}" data-option-id="${optionId}">Load</button>
+          <button class="ghost-btn" type="button" data-option-action="up" data-client-id="${clientId}" data-option-id="${optionId}" aria-label="Move ${label} up" ${index === 0 ? 'disabled' : ''}>↑</button>
+          <button class="ghost-btn" type="button" data-option-action="down" data-client-id="${clientId}" data-option-id="${optionId}" aria-label="Move ${label} down" ${index === options.length - 1 ? 'disabled' : ''}>↓</button>
+          <button class="ghost-btn" type="button" data-share-id="${clientId}" data-option-id="${optionId}" aria-label="Share ${label}">Share</button>
+          <button class="danger-btn" type="button" data-option-action="remove" data-client-id="${clientId}" data-option-id="${optionId}" aria-label="Remove ${label}" ${options.length === 1 ? 'disabled title="Use Delete client to remove the last option."' : ''}>Remove</button>
+        </div>
+      </div>`;
+    }).join('') : '';
     return `
       <div class="quote-item">
         <div class="top">
@@ -4605,22 +5043,35 @@ function renderSavedQuotes() {
             <div class="quote-meta">Saved ${formatDate(item.savedAt)}</div>
           </div>
           <div class="actions">
-            <button class="ghost-btn" data-load-id="${item.id}">Load</button>
-            <button class="icon-btn" type="button" data-share-id="${item.id}" aria-label="Share quote" title="Share quote">
+            <button class="ghost-btn" type="button" data-load-id="${clientId}" title="${multiple ? 'Load the first saved option' : 'Load quote'}">Load</button>
+            <button class="icon-btn" type="button" data-share-id="${clientId}" aria-label="${multiple ? 'Share first option' : 'Share quote'}" title="${multiple ? 'Share the first saved option' : 'Share quote'}">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3"></path><path d="m8 7 4-4 4 4"></path><path d="M6 10H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1"></path></svg>
             </button>
-            <button class="icon-btn delete" type="button" data-delete-id="${item.id}" aria-label="Delete quote" title="Delete quote">
+            <button class="icon-btn delete" type="button" data-delete-id="${clientId}" aria-label="Delete client and all options" title="Delete client and all options">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"></path><path d="M9 7V4h6v3"></path><path d="m7 7 1 14h8l1-14"></path><path d="M10 11v6M14 11v6"></path></svg>
             </button>
           </div>
         </div>
+        ${multiple ? `<details class="saved-options" name="saved-client-options" data-client-options="${clientId}" ${expanded ? 'open' : ''}>
+          <summary>Options (${options.length})</summary>
+          ${optionRows}
+        </details>` : ''}
+        <button class="ghost-btn single-quote-copy ${workingSavedOptionIndex(item) < 0 ? 'hidden' : ''}" type="button" data-copy-options="${clientId}">Copy Quote Summary</button>
       </div>
     `;
   }).join('') + reminderHtml;
 
-  root.querySelectorAll('[data-load-id]').forEach(btn => btn.onclick = () => loadQuote(btn.dataset.loadId));
-  root.querySelectorAll('[data-share-id]').forEach(btn => btn.onclick = () => shareSavedQuote(btn.dataset.shareId));
+  root.querySelectorAll('[data-load-id]').forEach(btn => btn.onclick = () => loadQuote(btn.dataset.loadId, btn.dataset.optionId));
+  root.querySelectorAll('[data-share-id]').forEach(btn => btn.onclick = () => shareSavedQuote(btn.dataset.shareId, btn.dataset.optionId));
   root.querySelectorAll('[data-delete-id]').forEach(btn => btn.onclick = () => deleteQuote(btn.dataset.deleteId));
+  root.querySelectorAll('[data-option-action]').forEach(btn => btn.onclick = () => changeSavedOption(btn.dataset.clientId, btn.dataset.optionId, btn.dataset.optionAction));
+  root.querySelectorAll('[data-copy-options]').forEach(btn => btn.onclick = () => copyClientQuoteSummary(btn.dataset.copyOptions, btn));
+  root.querySelectorAll('[data-client-options]').forEach(details => details.ontoggle = () => {
+    if (!details.isConnected) return;
+    const id = items.find(item => sameSavedId(item.id, details.dataset.clientOptions))?.id;
+    if (details.open && expandedQuoteId !== id) { expandedQuoteId = id; renderSavedQuotes(); }
+    else if (!details.open && expandedQuoteId === id) expandedQuoteId = null;
+  });
 }
 
 function formatDate(iso) {
@@ -4638,6 +5089,9 @@ function escapeHtml(s) {
 }
 
 function clearForm() {
+  editingSavedOption = null;
+  editingOptionName = '';
+  setQuoteOptionStatus('');
   state.quoteName = '';
   state.billingMode = 'Monthly';
   state.includeSpouse = 'No';
@@ -4666,12 +5120,26 @@ function rerender() {
   bindDynamicInputs();
   renderDiagnostics();
   renderSavedQuotes();
+  renderOptionEditor();
   updateSummary();
 }
 
 // Do not initialize the retired GitHub app or recreate storage before navigation.
 if (window.location.hostname !== 'bbuisson188.github.io') {
-document.getElementById('saveQuoteBtn').onclick = saveCurrentQuote;
+document.getElementById('saveQuoteBtn').onclick = () => saveCurrentQuote();
+document.getElementById('saveNewOptionBtn').onclick = () => saveCurrentQuote(true);
+document.getElementById('optionName').oninput = event => { editingOptionName = event.target.value; };
+document.getElementById('backupQuotesBtn').onclick = backupSavedQuotes;
+document.getElementById('importQuotesBtn').onclick = () => document.getElementById('importQuotesFile').click();
+document.getElementById('importQuotesFile').onchange = event => importSavedQuotesFile(event.target.files[0]);
+const localQuotesNote = document.getElementById('localSavedQuotesNote');
+if (window.location.protocol === 'file:') {
+  localQuotesNote.classList.remove('hidden');
+  localQuotesNote.textContent = 'This local file uses its own saved quotes, separate from the online site and HTTP previews. Back up quotes here before copying them to another address.';
+} else if (['localhost','127.0.0.1','[::1]'].includes(window.location.hostname)) {
+  localQuotesNote.classList.remove('hidden');
+  localQuotesNote.textContent = 'Quotes saved by opening the local HTML file are kept separately. Open that same file in this browser, back up quotes there, then import the backup here to test a copy.';
+}
 document.getElementById('clearFormBtn').onclick = clearForm;
 document.getElementById('crmCopyBtn').onclick = copyCrmSummary;
 document.getElementById('yearByYearBtn').onclick = openYearByYearBreakdown;

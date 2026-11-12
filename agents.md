@@ -331,7 +331,7 @@ Each base or rider line keeps its live modal premium compact by default. A small
 
 Insurance birthday is six calendar months after that insured's birth date and displays without a year using abbreviated month plus ordinal day, such as `Sept 21st`. If the target month is shorter than the birth-date day, use that month's final valid day.
 
-The sticky premium bar remains compact by default. When either insured has an enabled rider beyond the base plan, or when the child rider is enabled, show a compact Breakdown control. Expanding it shows separate coverage and selected-mode premium summaries for Primary, Spouse when included, and Child Rider when enabled. Primary and spouse displayed coverage totals include all of their enabled base plans and riders, including IBR coverage; the child rider is never included in either insured's coverage or premium and appears only as its own third summary. The large combined quoted premium remains unchanged. The expanded state is temporary and resets when clearing, loading, or importing a quote.
+The sticky premium bar remains compact by default. Show a compact Summary control when either insured has an enabled rider beyond the base plan, the child rider is enabled, or the loaded saved client has multiple options. Expanding it shows compact option cards in saved order, each with its name, separate Primary/Spouse/Child Rider coverage and premiums, and the total with that option's payment frequency. Use bounded card widths on desktop, stacked cards on mobile, and a vertically scrollable summary area for many options. The loaded option uses current calculator values and its editable name, marked In calculator and Unsaved changes when appropriate; other options use their saved inputs recalculated with current logic. A single quote uses Current quote rather than Option 1. Incomplete quotes show an issue and Unavailable instead of a partial price. Summary rendering never saves or replaces calculator inputs. Primary and spouse displayed coverage totals include all of their enabled base plans and riders, including IBR coverage; the child rider is never included in either insured's coverage or premium and appears only as its own separate row. The large combined quoted premium remains unchanged. The expanded state is temporary and resets when clearing, loading, or importing a quote.
 
 ### Saved quote updates
 
@@ -376,7 +376,11 @@ Each saved quote has a compact `Share` icon. The current sharing format supports
 
 ### CRM text summary
 
-The compact document icon in the sticky premium bar copies a plain-text summary of the live quote for pasting into a CRM. It never includes the client/quote name, DOBs, anniversaries, rate classes, table ratings, versions, or calculation details.
+The compact `CRM` button in the end-of-term sticky premium bar copies a plain-text summary of the live quote for pasting into a CRM. It never includes the client/quote name, DOBs, anniversaries, rate classes, table ratings, versions, or calculation details.
+
+When the loaded saved client has multiple options, CRM copies all options in saved order, with each option name above its existing CRM-formatted coverage lines and premium. Separate options with a blank line. Use the same saved-versus-displayed choice as email for unsaved changes, and reject the whole export if any selected option is incomplete. A single quote or unsaved new quote keeps the existing live CRM output without an option heading.
+
+Version 1.59 also has an adjacent envelope button on the end-of-term page with the tooltip `Copy quote summary for email`. It uses the existing saved-client email summary and saved-versus-displayed choice, and is enabled only while working on a saved client. Keep the existing Saved Work `Copy Quote Summary` button as well so the user can compare both locations. Neither button sends email.
 
 * A single line per insured is formatted like `Primary: Cust Exch - 150K` and `Spouse: Cust Exch - 80K`.
 * When an insured has multiple enabled lines, the line type is included, such as `Primary Base Plan` or `Primary Rider 1`.
@@ -385,8 +389,22 @@ The compact document icon in the sticky premium bar copies a plain-text summary 
 * Export is blocked when any enabled line is incomplete, unavailable, unsupported, missing required waiver premium, or otherwise not fully quotable. A partial or zero total must not be copied.
 * Successful clipboard copying briefly changes the icon to a checkmark. If direct clipboard access is unavailable, the app falls back to a manual copy prompt.
 * When waiver premium is actually included on an end-of-term line, `(WP)` appears immediately after that product. The child rider is also marked `(WP)` when its waiver premium is included.
-* The new-business page has the same compact CRM-copy icon. It produces one line per insured with product, term, coverage, class or class range, and that insured's separate application premium; and marks products and child riders with `(WP)` when waiver is selected. It does not include a household total, client names, ages, sex, tobacco status, or health wording.
+* The new-business page retains its compact document-style CRM-copy icon. It produces one line per insured with product, term, coverage, class or class range, and that insured's separate application premium; and marks products and child riders with `(WP)` when waiver is selected. It does not include a household total, client names, ages, sex, tobacco status, or health wording.
 * New-business birth dates use manual text entry rather than a browser calendar picker. They accept the same flexible formats as the end-of-term page, including `m/d/yy`, hyphen or period separators, and six- or eight-digit entries, then normalize valid dates to `MM/DD/YYYY` on blur.
+
+## Deferred phase two: New Business options and copying
+
+Paused at the user's request on November 12, 2026. The user has authorized publishing the end-of-term version 1.59 updates, with phase two next. Do not implement phase two automatically during publication; return to it with the user's next instruction.
+
+The user approved this direction for later implementation on `new-quote.html`:
+
+* Bring over the complete multiple-option workflow: save the first quote under a client, Save as New Option for additional complete snapshots, Save Changes for the loaded option, editable default Option 1/2/etc. names, reorder arrows, and removal. Allow arbitrary coverage amounts and any number of options.
+* Each option represents the complete primary-and-spouse proposal, including products, terms, coverage, classes, waiver, child rider, and billing frequency. Keep separate application premiums for each insured.
+* Preserve existing saved quotes as readable single quotes without rewriting them merely on load. Keep compact saved-client headers; main Load uses the first option. Show the options section only for multiple options, and expand one client at a time.
+* Add compact CRM text and envelope buttons to the top premium bar. Retain a Saved Work email-copy button for comparison with the top button, matching the end-of-term prototype.
+* CRM copies all options in order under their option names, retaining the existing New Business CRM formatting and separate application premiums.
+* Email copies polished plain text with option names, Primary/Spouse coverage, product term, and each insured's payment amount/frequency. Preserve the Very healthy premium range; specific classes show a single premium. Use concise singular wording without an Option 1 heading for a single quote, and explain that intermediate coverage amounts are available for multiple options. Include a brief final-premium underwriting qualification. Exact final wording remains reviewable when resumed.
+* Reuse the Copy saved / Copy displayed / Cancel choice when the loaded option differs from its saved version. Copy displayed substitutes only the loaded option; other options remain saved. Copying never saves or changes the calculator. Validate complete premiums before export and preserve existing new-business calculation behavior.
 
 ## Change strategy
 

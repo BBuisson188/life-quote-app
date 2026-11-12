@@ -172,11 +172,22 @@
 .sticky-premium-breakdown {
   flex:0 0 100%;
   display:grid;
-  grid-template-columns:repeat(auto-fit, minmax(170px, 1fr));
+  grid-template-columns:repeat(auto-fit, minmax(min(100%, 280px), 360px));
+  justify-content:start;
   gap:10px;
   padding-top:12px;
   border-top:1px solid rgba(255,255,255,.2);
+  max-height:45vh;
+  overflow-y:auto;
 }
+.premium-option-heading { display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 10px; margin-bottom:8px; }
+.premium-option-name { color:#fff; font-size:14px; font-weight:800; overflow-wrap:anywhere; }
+.premium-option-status { color:#bfdbfe; font-size:11px; }
+.premium-summary-row { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:baseline; gap:4px 12px; padding:5px 0; }
+.premium-summary-amount { color:#fff; font-size:13px; font-weight:700; }
+.premium-summary-price { color:#dbeafe; font-size:13px; white-space:nowrap; }
+.premium-summary-total { margin-top:6px; padding-top:8px; border-top:1px solid rgba(255,255,255,.18); }
+.premium-summary-issue { margin-top:6px; color:#fde68a; font-size:12px; }
 .premium-breakdown-item {
   min-width:0;
   padding:9px 11px;
@@ -206,10 +217,12 @@
 }
 .projection-btn:hover { background:rgba(255,255,255,.22); }
 .projection-btn:focus-visible { outline:2px solid #bfdbfe; outline-offset:2px; }
+.premium-copy-actions { display:flex; align-items:center; gap:6px; flex-wrap:nowrap; }
 .crm-copy-btn {
   width:38px; height:38px; padding:0; display:inline-flex; align-items:center; justify-content:center;
   border:1px solid rgba(255,255,255,.34); border-radius:12px;
   background:rgba(255,255,255,.14); color:#fff; cursor:pointer;
+  flex:0 0 38px; font-family:inherit; font-size:12px; font-weight:850; letter-spacing:.02em;
 }
 .crm-copy-btn:hover { background:rgba(255,255,255,.22); }
 .crm-copy-btn:focus-visible { outline:2px solid #bfdbfe; outline-offset:2px; }
@@ -590,11 +603,14 @@
           <span class="sticky-premium-alert-icon">🛑</span>
           <span class="sticky-premium-alert-text" id="stickyValidationText">Needs attention</span>
         </div>
-        <button class="crm-copy-btn" id="crmCopyBtn" type="button" aria-label="Copy text summary for CRM" title="Copy text summary for CRM">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"></path><path d="M14 3v5h5"></path><path d="M10 12h5M10 16h5"></path></svg>
-        </button>
+        <div class="premium-copy-actions">
+          <button class="crm-copy-btn" id="crmCopyBtn" type="button" aria-label="Copy summary for CRM" title="Copy summary for CRM">CRM</button>
+          <button class="crm-copy-btn" id="emailCopyBtn" type="button" aria-label="Copy quote summary for email" title="Load a saved quote to copy a summary for email" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m3 7 9 6 9-6"></path></svg>
+          </button>
+        </div>
         <button class="premium-breakdown-toggle hidden" id="premiumBreakdownToggle" type="button" aria-expanded="false" aria-controls="premiumBreakdown">
-          Breakdown
+          Summary
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
         </button>
         <button class="projection-btn hidden" id="yearByYearBtn" type="button">Year-by-year breakdown</button>
@@ -731,7 +747,7 @@
     </div>
     <div class="panel-body">
       <div class="result-grid">
-        <div><div class="result-k">Version</div><div class="result-v" id="metaVersion">1.58</div></div>
+        <div><div class="result-k">Version</div><div class="result-v" id="metaVersion">1.59</div></div>
         <div><div class="result-k">Quote status</div><div class="result-v" id="metaCalcStatus">Live quote</div></div>
         <div><div class="result-k">Primary lines</div><div class="result-v" id="metaPrimary">1 line</div></div>
         <div><div class="result-k">Spouse lines</div><div class="result-v" id="metaSpouse">Off</div></div>
@@ -756,7 +772,7 @@
 </dialog>
 <script>
 const APP = Object.freeze({
-  VERSION: '1.58',
+  VERSION: '1.59',
   VERSION_DATE: '2026-11-12',
   TITLE_BASE: 'Life Quote Workflow'
 });
@@ -2908,20 +2924,33 @@ function buildCrmSummaryText(calc) {
 function showCrmCopiedState() {
   const button = document.getElementById('crmCopyBtn');
   if (!button) return;
-  const original = button.innerHTML;
+  showCompactCopiedState(button);
+}
+
+function showCompactCopiedState(button) {
+  if (!button.dataset.copyMarkup) button.dataset.copyMarkup = button.innerHTML;
+  const sequence = String(Number(button.dataset.copySequence || 0) + 1);
+  button.dataset.copySequence = sequence;
   button.classList.add('copied');
-  button.setAttribute('aria-label', 'CRM summary copied');
-  button.title = 'CRM summary copied';
+  const copiedLabel = button.id === 'crmCopyBtn' ? 'CRM summary copied' : 'Email summary copied';
+  button.setAttribute('aria-label', copiedLabel);
+  button.title = copiedLabel;
   button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"></path></svg>';
   window.setTimeout(() => {
+    if (button.dataset.copySequence !== sequence) return;
     button.classList.remove('copied');
-    button.setAttribute('aria-label', 'Copy text summary for CRM');
-    button.title = 'Copy text summary for CRM';
-    button.innerHTML = original;
+    button.innerHTML = button.dataset.copyMarkup;
+    button.setAttribute('aria-label', button.id === 'crmCopyBtn' ? 'Copy summary for CRM' : 'Copy quote summary for email');
+    button.title = button.id === 'crmCopyBtn' ? 'Copy summary for CRM'
+      : button.disabled ? 'Load a saved quote to copy a summary for email' : 'Copy quote summary for email';
   }, 1600);
 }
 
 async function copyCrmSummary() {
+  const client = loadSavedQuotes().find(item => workingSavedOptionIndex(item) >= 0);
+  if (client && getSavedOptions(client).length > 1) {
+    return copyClientQuoteSummary(client.id, document.getElementById('crmCopyBtn'), 'crm');
+  }
   const calc = calculations();
   const issue = crmExportIssue(calc);
   if (issue) {
@@ -4149,7 +4178,10 @@ function updateSummary() {
 
   const hasAdditionalInsuredRider = state.primary.slice(1).some(line => line.enabled)
     || (state.includeSpouse === 'Yes' && state.spouse.slice(1).some(line => line.enabled));
-  const hasBreakdown = hasAdditionalInsuredRider || state.includeChild === 'Yes';
+  const client = loadSavedQuotes().find(item => workingSavedOptionIndex(item) >= 0);
+  const options = client ? getSavedOptions(client) : [];
+  const multiple = options.length > 1;
+  const hasBreakdown = multiple || hasAdditionalInsuredRider || state.includeChild === 'Yes';
   if (!hasBreakdown) premiumBreakdownExpanded = false;
 
   const breakdownToggle = document.getElementById('premiumBreakdownToggle');
@@ -4160,24 +4192,28 @@ function updateSummary() {
   }
   if (breakdown) {
     breakdown.classList.toggle('hidden', !hasBreakdown || !premiumBreakdownExpanded);
-    if (hasBreakdown) {
-      const premiumForSide = side => calc.lines
-        .filter(item => item.side === side)
-        .reduce((sum, item) => sum + (item.calc.modalTotal || 0), 0);
-      const summaryItem = (label, coverage, premium) => `
-        <div class="premium-breakdown-item">
-          <div class="premium-breakdown-k">${label}</div>
-          <div class="premium-breakdown-coverage">${wholeCoverageMoney(coverage)} coverage</div>
-          <div class="premium-breakdown-premium">${money(premium)} ${state.billingMode}</div>
+    if (hasBreakdown && premiumBreakdownExpanded) {
+      const activeIndex = client ? workingSavedOptionIndex(client) : -1;
+      const summaryOptions = multiple ? options : [{ snapshot:state }];
+      breakdown.innerHTML = summaryOptions.map((option, index) => {
+        const active = !multiple || index === activeIndex;
+        const snapshot = active ? state : option.snapshot;
+        const result = evaluateSavedOption(snapshot);
+        const name = multiple ? (active ? editingOptionName.trim() || savedOptionLabel(option, index) : savedOptionLabel(option, index)) : 'Current quote';
+        const changed = multiple && active && (comparableQuoteInputs(state) !== comparableQuoteInputs(option.snapshot)
+          || name !== savedOptionLabel(option, index));
+        const rows = result.coverage.map(group => `
+          <div class="premium-summary-row">
+            <div><div class="premium-breakdown-k">${escapeHtml(group.role)}</div><div class="premium-summary-amount">${wholeCoverageMoney(group.amount)}</div></div>
+            <div class="premium-summary-price">${result.issue ? '—' : money(group.premium)}</div>
+          </div>`).join('');
+        return `<div class="premium-breakdown-item">
+          <div class="premium-option-heading"><span class="premium-option-name">${escapeHtml(name)}</span>${multiple ? `<span class="premium-option-status">${active ? changed ? 'In calculator · Unsaved changes' : 'In calculator' : 'Saved'}</span>` : ''}</div>
+          ${rows}
+          <div class="premium-summary-row premium-summary-total"><span class="premium-summary-amount">Total · ${escapeHtml(result.billingMode)}</span><strong class="premium-summary-price">${result.issue ? 'Unavailable' : money(result.premium)}</strong></div>
+          ${result.issue ? `<div class="premium-summary-issue">${escapeHtml(result.issue)}</div>` : ''}
         </div>`;
-      const items = [summaryItem('Primary', totalCoverageForProductLimits('primary'), premiumForSide('primary'))];
-      if (state.includeSpouse === 'Yes') {
-        items.push(summaryItem('Spouse', totalCoverageForProductLimits('spouse'), premiumForSide('spouse')));
-      }
-      if (state.includeChild === 'Yes') {
-        items.push(summaryItem('Child Rider', numericAmount(state.childCoverage) || 0, calc.childModal || 0));
-      }
-      breakdown.innerHTML = items.join('');
+      }).join('');
     } else {
       breakdown.innerHTML = '';
     }
@@ -4215,7 +4251,7 @@ function bindHeaderInputs() {
     const isSelect = el.tagName === 'SELECT';
     const inputHandler = () => {
       state[key] = el.value;
-      if (key === 'quoteName') renderOptionEditor();
+      if (key === 'quoteName') { renderOptionEditor(); updateSummary(); }
       if (key === 'primaryDob' || key === 'spouseDob') {
         updateDisplayedAges();
         updateDobEmphasis();
@@ -4225,7 +4261,7 @@ function bindHeaderInputs() {
     };
     const changeHandler = () => {
       state[key] = el.value;
-      if (key === 'quoteName') renderOptionEditor();
+      if (key === 'quoteName') { renderOptionEditor(); updateSummary(); }
       else rerender();
     };
     el.oninput = isSelect ? null : inputHandler;
@@ -4778,10 +4814,10 @@ function evaluateSavedOption(snapshot) {
         const lines = calc.lines.filter(entry => entry.side === side);
         const total = lines.reduce((sum, entry) => sum + (numericAmount(entry.line.amount) || 0), 0);
         const products = lines.map(entry => `${entry.line.product || 'Product needed'} ${wholeCoverageMoney(numericAmount(entry.line.amount) || 0)}${entry.calc.modalWp > 0 ? ' (WP)' : ''}`).join('; ');
-        return { role, amount:total, products };
+        return { role, amount:total, products, premium:lines.reduce((sum, entry) => sum + (entry.calc.modalTotal || 0), 0) };
       });
-    if (state.includeChild === 'Yes') coverage.push({ role:'Child Rider', amount:numericAmount(state.childCoverage) || 0, products:calc.childWp > 0 ? 'Waiver included' : '' });
-    return { issue, coverage, premium:calc.totalModal, billingMode:state.billingMode,
+    if (state.includeChild === 'Yes') coverage.push({ role:'Child Rider', amount:numericAmount(state.childCoverage) || 0, products:calc.childWp > 0 ? 'Waiver included' : '', premium:calc.childModal || 0 });
+    return { issue, coverage, premium:calc.totalModal, billingMode:state.billingMode, crmSummary:buildCrmSummaryText(calc),
       waiverIncluded:calc.lines.some(entry => entry.calc.modalWp > 0) || calc.childWp > 0 };
   } finally {
     // Calculating a saved option must never replace the quote being edited.
@@ -4821,6 +4857,20 @@ function renderOptionEditor() {
     const workingClient = savedClients.find(item => sameSavedId(item.id, button.dataset.copyOptions));
     button.classList.toggle('hidden', !workingClient || workingSavedOptionIndex(workingClient) < 0);
   });
+  const emailButton = document.getElementById('emailCopyBtn');
+  const workingClient = savedClients.find(item => workingSavedOptionIndex(item) >= 0);
+  const copyClientId = workingClient ? String(workingClient.id) : '';
+  if (emailButton.dataset.copyClientId !== copyClientId) {
+    emailButton.dataset.copySequence = String(Number(emailButton.dataset.copySequence || 0) + 1);
+    emailButton.classList.remove('copied');
+    if (emailButton.dataset.copyMarkup) emailButton.innerHTML = emailButton.dataset.copyMarkup;
+  }
+  emailButton.dataset.copyClientId = copyClientId;
+  emailButton.disabled = !workingClient;
+  if (!emailButton.classList.contains('copied')) {
+    emailButton.setAttribute('aria-label', 'Copy quote summary for email');
+    emailButton.title = workingClient ? 'Copy quote summary for email' : 'Load a saved quote to copy a summary for email';
+  }
 }
 
 function saveCurrentQuote(asNewOption = false) {
@@ -4908,6 +4958,7 @@ function changeSavedOption(clientId, optionId, action) {
   setQuoteOptionStatus(action === 'remove' ? 'Saved option removed. The calculator entries are unchanged.' : 'Option order saved.');
   renderSavedQuotes();
   renderOptionEditor();
+  updateSummary();
 }
 
 function buildClientQuoteSummary(client) {
@@ -4928,6 +4979,15 @@ function buildClientQuoteSummary(client) {
     multiple
       ? "We can also look at coverage amounts between these examples. Let me know which option you prefer, or if you'd like a different coverage amount."
       : "If you'd like to see a different coverage amount, just let me know."].join('\n\n');
+}
+
+function buildClientCrmSummary(client) {
+  return getSavedOptions(client).map((option, index) => {
+    const label = savedOptionLabel(option, index);
+    const result = evaluateSavedOption(option.snapshot);
+    if (result.issue) throw new Error(`${label}: ${result.issue}`);
+    return `${label}\n${result.crmSummary}`;
+  }).join('\n\n');
 }
 
 function workingSavedOptionIndex(client) {
@@ -4965,7 +5025,7 @@ function chooseQuoteSummarySource(multiple) {
   });
 }
 
-async function copyClientQuoteSummary(id, button) {
+async function copyClientQuoteSummary(id, button, format = 'email') {
   const client = loadSavedQuotes().find(item => sameSavedId(item.id, id));
   if (!client) return;
   const optionIndex = workingSavedOptionIndex(client);
@@ -4985,16 +5045,17 @@ async function copyClientQuoteSummary(id, button) {
       ? { ...option, name:multiple ? currentName : option.name, snapshot:currentSnapshot } : option) };
   }
   let summary;
-  try { summary = buildClientQuoteSummary(summaryClient); }
+  try { summary = format === 'crm' ? buildClientCrmSummary(summaryClient) : buildClientQuoteSummary(summaryClient); }
   catch (error) { window.alert(`Summary not copied. ${error.message} Load and complete ${getSavedOptions(client).length > 1 ? 'that option' : 'the quote'} first.`); return; }
   try {
     if (navigator.clipboard?.writeText && window.isSecureContext) {
       await navigator.clipboard.writeText(summary);
-      if (button) { button.textContent = 'Copied'; setTimeout(() => { if (button.isConnected) button.textContent = 'Copy Quote Summary'; }, 1800); }
+      if (button?.id === 'emailCopyBtn' || button?.id === 'crmCopyBtn') showCompactCopiedState(button);
+      else if (button) { button.textContent = 'Copied'; setTimeout(() => { if (button.isConnected) button.textContent = 'Copy Quote Summary'; }, 1800); }
       return;
     }
   } catch { /* Fall back to manually copying the complete summary. */ }
-  window.prompt('Copy Quote Summary:', summary);
+  window.prompt(format === 'crm' ? 'Copy this CRM summary:' : 'Copy Quote Summary:', summary);
 }
 
 function renderSavedQuotes() {
@@ -5128,7 +5189,7 @@ function rerender() {
 if (window.location.hostname !== 'bbuisson188.github.io') {
 document.getElementById('saveQuoteBtn').onclick = () => saveCurrentQuote();
 document.getElementById('saveNewOptionBtn').onclick = () => saveCurrentQuote(true);
-document.getElementById('optionName').oninput = event => { editingOptionName = event.target.value; };
+document.getElementById('optionName').oninput = event => { editingOptionName = event.target.value; updateSummary(); };
 document.getElementById('backupQuotesBtn').onclick = backupSavedQuotes;
 document.getElementById('importQuotesBtn').onclick = () => document.getElementById('importQuotesFile').click();
 document.getElementById('importQuotesFile').onchange = event => importSavedQuotesFile(event.target.files[0]);
@@ -5142,6 +5203,10 @@ if (window.location.protocol === 'file:') {
 }
 document.getElementById('clearFormBtn').onclick = clearForm;
 document.getElementById('crmCopyBtn').onclick = copyCrmSummary;
+document.getElementById('emailCopyBtn').onclick = () => {
+  const button = document.getElementById('emailCopyBtn');
+  if (!button.disabled && button.dataset.copyClientId) copyClientQuoteSummary(button.dataset.copyClientId, button);
+};
 document.getElementById('yearByYearBtn').onclick = openYearByYearBreakdown;
 document.getElementById('premiumBreakdownToggle').onclick = () => {
   premiumBreakdownExpanded = !premiumBreakdownExpanded;

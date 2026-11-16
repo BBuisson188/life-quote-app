@@ -18,6 +18,8 @@ The main goal is to keep the project **simple, stable, and easy to hand off**. D
 
 ## User collaboration preferences
 
+* Publish requested app updates for the user to test on the online site unless the user specifically asks for a local preview. The user does not have a convenient local testing workflow and explicitly confirmed this preference on November 16, 2026. Run implementation checks before publishing, then verify the live site.
+
 * The user often wants a plain-English explanation first, then the actual build/update.
 * The user does **not** want long code dumps unless explicitly requested.
 * Keep explanations practical and focused on what changed, why it changed, and what to test.
@@ -334,6 +336,8 @@ Insurance birthday is six calendar months after that insured's birth date and di
 The sticky premium bar remains compact by default. Show a compact Summary control when either insured has an enabled rider beyond the base plan, the child rider is enabled, or the loaded saved client has multiple options. Expanding it shows compact option cards in saved order, each with its name, separate Primary/Spouse/Child Rider coverage and premiums, and the total with that option's payment frequency. Use bounded card widths on desktop, stacked cards on mobile, and a vertically scrollable summary area for many options. The loaded option uses current calculator values and its editable name, marked In calculator and Unsaved changes when appropriate; other options use their saved inputs recalculated with current logic. A single quote uses Current quote rather than Option 1. Incomplete quotes show an issue and Unavailable instead of a partial price. Summary rendering never saves or replaces calculator inputs. Primary and spouse displayed coverage totals include all of their enabled base plans and riders, including IBR coverage; the child rider is never included in either insured's coverage or premium and appears only as its own separate row. The large combined quoted premium remains unchanged. The expanded state is temporary and resets when clearing, loading, or importing a quote.
 
 ### Saved quote updates
+
+Version 1.61, November 16, 2026: both calculators use the compact Saved work heading and Saved locally in this browser note. A Sort by dropdown immediately above the saved-client list offers Recently opened, Last saved, and Name A–Z. Recently opened is the initial default; each page remembers its selection independently in this browser. Loading a client or one of its options updates that client's last-opened timestamp. Clients with no recorded open time fall back to their saved date. Last saved orders newest savedAt first, unaffected by loading; Name A–Z ignores case and puts unnamed clients last. Sorting changes only display order, never the saved records, name-matching save behavior, or a client's option order. Store preferences and open times separately under `${STORAGE_KEY}-list-preferences`; blocked preference storage must not prevent loading or in-session sorting. Keep the longer origin-specific storage explanation out of the saved-work UI; actual browser-origin storage separation remains unchanged.
 
 Saving uses the current client name as the only matching rule. If that name exactly matches a saved draft after trimming outside spaces, update the newest matching entry. If there is no exact match, create a new saved draft. Renaming a loaded quote therefore creates a new entry and leaves the originally loaded draft unchanged.
 

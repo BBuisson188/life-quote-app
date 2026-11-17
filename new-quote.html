@@ -1544,6 +1544,14 @@
     }
   }
 
+  function trackSharedQuoteEvent(eventName) {
+    try {
+      if (window.location.hostname === 'lifequote-d33.pages.dev' && typeof window.gtag === 'function') {
+        window.gtag('event', eventName, { quote_page: 'new_business' });
+      }
+    } catch { /* Analytics must never prevent opening a shared quote. */ }
+  }
+
   async function handleSharedQuoteFromUrl() {
     if (!window.location.hash.startsWith('#share=')) return;
     try {
@@ -1554,6 +1562,7 @@
         window.alert('This shared quote link has expired.');
         return;
       }
+      trackSharedQuoteEvent('shared_quote_opened');
       const accepted = window.confirm('A shared new-business quote is ready. Load it into this page? It will not be saved automatically.');
       clearShareHash();
       if (!accepted) return;
@@ -1570,6 +1579,7 @@
       document.getElementById('premiumModeLabel').textContent = document.getElementById('billingMode').value;
       renderSavedQuotes();
       rebuildInsuredForms();
+      trackSharedQuoteEvent('shared_quote_loaded');
     } catch {
       clearShareHash();
       window.alert('This quote-sharing link is invalid or could not be opened.');

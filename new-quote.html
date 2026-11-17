@@ -543,6 +543,16 @@
     .add-spouse .primary-button { width: 100%; }
     .insured-total { flex-direction: column; }
   }
+
+  .share-link-dialog { width:min(440px, calc(100% - 32px)); padding:22px; border:1px solid var(--line); border-radius:18px; background:var(--panel, #fff); color:var(--text); box-shadow:var(--shadow); }
+  .share-link-dialog::backdrop { background:rgba(15,23,42,.4); }
+  .share-link-dialog h2 { margin:0 0 16px; font-size:18px; }
+  .share-link-choice { display:block; width:100%; margin:10px 0; padding:12px; text-align:left; border:1px solid #cbd5e1; border-radius:12px; background:#f8fbff; color:var(--text); cursor:pointer; font:inherit; }
+  .share-link-choice:hover { background:#eaf3ff; }
+  .share-link-choice:focus-visible { outline:2px solid #3167c8; outline-offset:2px; }
+  .share-link-choice strong, .share-link-choice small { display:block; }
+  .share-link-choice small { margin-top:4px; color:var(--muted); font-size:13px; line-height:1.4; }
+  .share-link-cancel { display:block; margin:14px 0 0 auto; padding:8px 12px; border:1px solid #cbd5e1; border-radius:10px; background:#fff; cursor:pointer; font:inherit; }
 </style>
 </head>
 <body>
@@ -679,6 +689,15 @@
       <li>Specific-class choices are limited by product and sex. Class 7 is reserved for child-rider conversions.</li>
     </ul>
   </div>
+</dialog>
+
+<dialog id="shareLinkChoice" class="share-link-dialog" aria-labelledby="shareLinkChoiceTitle">
+  <form method="dialog">
+    <h2 id="shareLinkChoiceTitle">How will you use this link?</h2>
+    <button class="share-link-choice" value="temporary"><strong>Share with someone</strong><small>Copy a link that expires in 24 hours.</small></button>
+    <button class="share-link-choice" value="permanent"><strong>Keep for future quoting</strong><small>Copy a link with no expiration so you can reopen and update this quote later.</small></button>
+    <button class="share-link-cancel" value="cancel">Cancel</button>
+  </form>
 </dialog>
 
 <dialog id="copyQuoteChoice" aria-labelledby="copyQuoteChoiceTitle" aria-describedby="copyQuoteChoiceDescription">
@@ -1527,6 +1546,16 @@
     return false;
   }
 
+  function chooseShareLinkType() {
+    const dialog = document.getElementById('shareLinkChoice');
+    if (dialog.open) return Promise.resolve(null);
+    dialog.returnValue = 'cancel';
+    return new Promise(resolve => {
+      dialog.addEventListener('close', () => resolve(['temporary', 'permanent'].includes(dialog.returnValue) ? dialog.returnValue : null), { once:true });
+      dialog.showModal();
+    });
+  }
+
   async function shareSavedQuote(id, optionId = null) {
     const item = readSavedQuotes().find(quote => sameSavedId(quote.id, id));
     if (!item) return;
@@ -1534,11 +1563,15 @@
     const option = optionId == null ? options[0] : options.find(entry => sameSavedId(entry.id, optionId));
     if (!option) return;
     try {
-      const encoded = await encodeSharedQuote(sharedQuotePayload(quoteSnapshot(option.snapshot)));
+      const linkType = await chooseShareLinkType();
+      if (!linkType) return;
+      const payload = sharedQuotePayload(quoteSnapshot(option.snapshot));
+      if (linkType === 'permanent') payload.e = null;
+      const encoded = await encodeSharedQuote(payload);
       const url = new URL(window.location.href);
       url.hash = `share=${encoded}`;
       const copied = await copyShareLink(url.toString());
-      if (copied) window.alert('Share link copied. It expires in 24 hours and does not include client names.');
+      if (copied) window.alert((linkType === 'permanent' ? 'Link copied. It has no expiration.' : 'Link copied. It expires in 24 hours.') + '\n\nThis link does not contain client names, but it does contain birth dates. To protect client privacy, do not use actual client birth dates when sharing or saving a quote. Use an approximate birth date instead.');
     } catch {
       window.alert('The share link could not be created in this browser.');
     }
@@ -1557,7 +1590,7 @@
     try {
       const payload = await decodeSharedQuote(window.location.hash.slice(7));
       if (payload?.v !== 1 || !payload.p || typeof payload.p !== 'object') throw new Error('Invalid shared quote.');
-      if (!Number.isFinite(payload.e) || Date.now() > payload.e) {
+      if (payload.e !== null && (!Number.isFinite(payload.e) || Date.now() > payload.e)) {
         clearShareHash();
         window.alert('This shared quote link has expired.');
         return;

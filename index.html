@@ -29,6 +29,33 @@
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Life Quote Workflow</title>
+<script>
+// Basic visitor/session counts only. Keep quote inputs and shared URLs out of GA.
+(() => {
+  if (window.location.hostname !== 'lifequote-d33.pages.dev') return;
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = function () { window.dataLayer.push(arguments); };
+  gtag('set', {
+    page_location: 'https://lifequote-d33.pages.dev/',
+    page_title: 'End-of-term quote',
+    page_referrer: ''
+  });
+  gtag('js', new Date());
+  gtag('config', 'G-M1ER0EWG31', {
+    page_location: 'https://lifequote-d33.pages.dev/',
+    page_title: 'End-of-term quote',
+    page_referrer: '',
+    cookie_domain: 'lifequote-d33.pages.dev',
+    allow_google_signals: false,
+    allow_ad_personalization_signals: false
+  });
+  const tag = document.createElement('script');
+  tag.async = true;
+  tag.src = 'https://www.googletagmanager.com/gtag/js?id=G-M1ER0EWG31';
+  tag.referrerPolicy = 'no-referrer';
+  document.head.appendChild(tag);
+})();
+</script>
 <meta name="theme-color" content="#23457c" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Quick Quote" />

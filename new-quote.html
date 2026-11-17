@@ -29,6 +29,33 @@
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>New Business Life Quote</title>
+<script>
+// Basic visitor/session counts only. Keep quote inputs and shared URLs out of GA.
+(() => {
+  if (window.location.hostname !== 'lifequote-d33.pages.dev') return;
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = function () { window.dataLayer.push(arguments); };
+  gtag('set', {
+    page_location: 'https://lifequote-d33.pages.dev/new-quote.html',
+    page_title: 'New business quote',
+    page_referrer: ''
+  });
+  gtag('js', new Date());
+  gtag('config', 'G-M1ER0EWG31', {
+    page_location: 'https://lifequote-d33.pages.dev/new-quote.html',
+    page_title: 'New business quote',
+    page_referrer: '',
+    cookie_domain: 'lifequote-d33.pages.dev',
+    allow_google_signals: false,
+    allow_ad_personalization_signals: false
+  });
+  const tag = document.createElement('script');
+  tag.async = true;
+  tag.src = 'https://www.googletagmanager.com/gtag/js?id=G-M1ER0EWG31';
+  tag.referrerPolicy = 'no-referrer';
+  document.head.appendChild(tag);
+})();
+</script>
 <meta name="theme-color" content="#23457c" />
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-qq-32.png" />
 <style>
